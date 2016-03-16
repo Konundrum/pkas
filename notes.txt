@@ -1,0 +1,166 @@
+
+
+The View instantiates the Adapter, passing
+in a DataList and a [children] list.
+
+The adapter binds to the PKList dispatches: insert(index/key), delete, assign, swap
+and keeps the [children] in sync.
+
+I want to make list and dict objects:
+class DataList(EventDispatcher, list)
+
+
+Their way has the adapter manage its own
+data (instead of binding to a DataList) and
+repopulates all the widgets on changes!
+
+
+DataDict
+DataList
+
+PKAdapter
+  events: insert(key), delete(key), assign(obj), swap(item, item)
+
+
+Views will instantiate an adapter with a Ctor and a DataDict/DataList.
+
+
+
+Widgets might need:
+  factory
+  controller
+  context
+
+This info can be passed into directly fired control events.. 
+
+
+.kv files can still define functions using lambda and accept *args and such. 
+Therefore I can just pass in app and everything is available everywhere. 
+
+pages, regions and elements can be given (and stripped of) the controller when focused.
+a 'hot' reference that is deleted (how can this be done faster?)
+
+should FocusWidgets be given controller / a control slot? yes, for abstraction purposes at least
+  controller? No. only contexts get it native. Still accessible through app arg, but regions might need it 
+  internally.. (e.g. on_press calling on_delve ... where will it get app? )
+              (this raises an issue, I think press should trigger focus, and then delve 'event'?)
+
+on_press:
+  controller = root.controller
+  controller.focus = self     # properties are appropriate here
+  controller.trigger('delve')
+
+
+  what about getting data down?
+
+  Event Bubbling ? NO
+
+
+
+
+what are the graph properties corresponding to associativity, commutivity, trans... etc?
+
+information content and context.
+the context rules define the form and transformations. (a machine for generating theorems)
+content provides conditions of analysis.
+
+
+
+
+
+the false battle, touted by msnbc contributers, is between those seeking equal representation among the ultra-powerful and see
+a lot of Trump's support as coming from a backlash against gains made here during Obama's presidency.
+
+
+psychology
+therapeutic procedure --- in terms of concepts the client has
+
+construction  : build up concepts/vocabulary the client uses to examine their circumstances/situation
+refinement    : refine these concepts by recreating untold aspects of the client's situation and seeking validation
+analysis      : engage in analysis of difficult situations the client has encountered.
+                attempt to bring out features of the concepts as revealed through difficult situations
+                evaluate whether to drop the concepts or to adopt a different strategy of action within the concept, or to wait it out.
+
+
+it is possible to hold concepts and action in suspension
+
+do not attempt to define "who we are" or "are going to be" or what "we are going to do".
+the client should feel confident in their current reasoning for holding their perspective, but understand it is subject to deformation via inflow of new information.
+in general seek coherence, usually meaning promote a cycle of critical analysis and communication.
+the ideal situation is more similar to a group puzzle than to a client/provider relation, this is just the particular type of puzzle the provider has been working at.
+part of the point is that a non-embedded agent observes different features of the situation, as do all members of a situation.
+holding these distinct views in suspension allows potential for a more accurate perspective.
+
+
+
+
+education
+im interested in what is relevant to the transfer of concepts between humans
+
+
+This includes perceptual distinction and identification, working memory and long term stores,
+relevation and manipulation costs, (inc. active domains and modules [effects relevation and manipulation costs].
+[Similarly; domain / semantic familiarity modifiers (this has been studied)]
+
+
+Levels of processing and story / meaning encoding.. Stories / paths are encoded more effectively than concept / property information.
+Stories establish relevance, refer to functional human needs (common functional items of the lexicon)
+
+Narrowing down a problem:
+Domain : Relevance : Concept : Properties
+
+the ideal educational environment is one of group discovery, not to transfer knowledge.  
+
+(what about: deep vs surface structure of problems; training relevance) 
+
+
+(This includes the central executive, phonologic loop, episodic buffer, visuospatial sketchpad, verbal information, long term memory, and visual information)
+
+
+
+
+politics
+authoritarianism: threat that practical concepts / way of life will be superseceded by replacement of overarching social structure. 
+
+
+
+language
+why cant the language faculty be interfaced soley with the system of meaning?
+This seems plausible to me for reasons of maintaining coherent motor contexts / actions, by having only one interface.
+In this light it is also possible to consider meaning and language part of a set which is interfaced with the sensory motor system.
+
+
+philosophy
+would like to boil down a rationale framework into as few assertions as possible, and to have these be commonly accepted.
+then to discover and defend statements within this framework.
+
+
+
+
+metaphysics
+: bridges the gap between the technical and non-technical domains. This seems to be the only reasonable
+  way to approach understanding our everyday use of concepts like 'person' while understanding they have no 
+  reference in the world. 
+
+: logical framework / Metaphysical object-property-frame model
+
+: provide philosophical justification for naturalistic inquiry and experimental design
+  (nature of correspondence / measure / phenomena)
+
+: establish the limits of modeling and naturalistic inquiry.
+
+The model should be able to accurately characterize the history of models in science and explain why older models
+were displaced by new ones; i.e. a framework of relevance (correspondence), limits and precision.
+
+
+Domains should use minimum logical framework required...
+  Current formalized naturalistic inquiry accepts arithmetic and beyond as a basis for mathematical modeling.
+  philosophical topics will require varying levels of logical framework. (predicate, 1rst, 2nd, .. types)
+  a task of the philosopher is to informally argue the appropriateness of applying logic to a domain.
+
+
+
+
+
+For a 16 varible normed division algebra why cant you use two-state operators that include their own additional orientation beyond argument order. One can argue this is in fact defining two separate operations, but these functions are only allowed to vary as to which sub-field they map to. (Relative position and magnitude stays the same)
+
