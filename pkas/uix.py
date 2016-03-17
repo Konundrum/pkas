@@ -1,6 +1,6 @@
 from kivy.lang import Builder
 from kivy.event import EventDispatcher
-from kivy.properties import AliasProperty, BooleanProperty, ObjectProperty
+from kivy.properties import AliasProperty, BooleanProperty
 from os.path import join
 
 
@@ -22,23 +22,6 @@ class Interactive(EventDispatcher):
   def on_inactive(self, app):
     pass
 
-
-
-
-
-class DataWidget(EventDispatcher):
-  model = ObjectProperty(None, rebind=True)
-  # select
-  # deselect
-
-  def __init__(self, model=None, **kwargs):
-    self.model = model
-    super().__init__(**kwargs)
-
-
-  def reset(self):
-    self.model = None
-    return self
 
 
 
@@ -77,21 +60,4 @@ class Selector(EventDispatcher):
     if self._index > 0:
       self._index -= 1
     return self._widgets[self._index]
-
-
-
-
-
-
-from kivy.uix.behaviors.button import ButtonBehavior
-from kivy.uix.label import Label
-
-class PKButton(Interactive, ButtonBehavior, Label):
-  
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-
-
-  def on_delve(self, app):
-    self.dispatch('on_press')
 

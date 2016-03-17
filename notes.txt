@@ -1,3 +1,9 @@
+Factory singleton ...
+  never interacted with user!
+
+Register widgets passed into Adapters..
+what about data models??? they're loading by classname
+ 
 
 
 The View instantiates the Adapter, passing
@@ -17,9 +23,14 @@ repopulates all the widgets on changes!
 
 DataDict
 DataList
+  events: insert(key, val),
+          remove(key),
+          refresh(obj),
+          swap(index, index)
+          set(key, value)
 
 PKAdapter
-  events: insert(key), delete(key), assign(obj), swap(item, item)
+  Asynchronously initialize widgets...
 
 
 Views will instantiate an adapter with a Ctor and a DataDict/DataList.

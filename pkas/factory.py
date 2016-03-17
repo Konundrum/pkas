@@ -17,11 +17,9 @@ class Factory(object):
       Ctor = self._ctors[name]
     except KeyError:
       Exception('factory.make: Invalid ctor name.')
-    
-    class_name = Ctor.__name__
 
     try:
-      return self._recycled[class_name].pop().init(**kwargs)
+      return self._recycled[name].pop().init(**kwargs)
     except IndexError:
       return Ctor(**kwargs)
 
@@ -43,8 +41,12 @@ class Factory(object):
 
 
     
-  def specify(self, name, Ctor, length=QUEUE_LEN):
-    self._ctors[name] = Ctor
+    # Adapter accepts Ctors... 
+    
+  def specify(self, Ctor, length=QUEUE_LEN):
+    self._ctors[Ctor.__name__] = Ctor
     self._queue_lengths[Ctor.__name__] = length
 
 
+
+factory = Factory()
