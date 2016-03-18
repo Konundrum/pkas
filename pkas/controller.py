@@ -1,19 +1,27 @@
 import json
 from kivy.core.window import Window
 from kivy.properties import AliasProperty
-from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.widget import Widget
 
 
-class Controller(FloatLayout):
+class Controller(Widget):
+
+  def __init__(self, app, **kwargs):
+    super().__init__(**kwargs)
+    self._page = self._region = self._focus = None
+    self.app = app
+    self._key_binds = self._parse_keys(app.config)
+    self.take_control()
+
 
   def _switch_active(self, old, new):
     if new is old:
       return False
     if old:
-      old.on_inactive(self.app)
+      old.on_inactive(self)
       old.is_active = False
     if new:
-      new.on_active(self.app)
+      new.on_active(self)
       new.is_active = True
     return True
 
@@ -52,15 +60,6 @@ class Controller(FloatLayout):
   
 
 
-  def __init__(self, app, **kwargs):
-    super().__init__(**kwargs)
-    self._page = self._region = self._focus = None
-    self.app = app
-    self._key_binds = self._parse_keys(app.config)
-    self.take_control()
-
-
-
   def take_control(self):
     self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
     self._keyboard.bind(on_key_down=self._on_keyboard_down)
@@ -79,7 +78,7 @@ class Controller(FloatLayout):
     except AttributeError:
       return False
 
-    cb(self.app)
+    cb(self)
     return True
 
 
@@ -111,3 +110,4 @@ class Controller(FloatLayout):
           print('bound:', key, cmd)
 
     return binds
+

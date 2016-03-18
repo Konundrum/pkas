@@ -1,9 +1,16 @@
-Factory singleton ...
-  never interacted with user!
+Change to passing controller in lieu of app
 
-Register widgets passed into Adapters..
-what about data models??? they're loading by classname
- 
+
+
+
+
+
+Auto-Register widgets passed into Adapters?
+What about data models???
+    - pull in from xml!?
+    parse_models
+
+This is an entertaining idea but overkill.. 
 
 
 The View instantiates the Adapter, passing
@@ -12,60 +19,22 @@ in a DataList and a [children] list.
 The adapter binds to the PKList dispatches: insert(index/key), delete, assign, swap
 and keeps the [children] in sync.
 
-I want to make list and dict objects:
-class DataList(EventDispatcher, list)
-
-
 Their way has the adapter manage its own
 data (instead of binding to a DataList) and
 repopulates all the widgets on changes!
-
-
-DataDict
-DataList
-  events: insert(key, val),
-          remove(key),
-          refresh(obj),
-          swap(index, index)
-          set(key, value)
 
 PKAdapter
   Asynchronously initialize widgets...
 
 
-Views will instantiate an adapter with a Ctor and a DataDict/DataList.
-
-
-
-Widgets might need:
-  factory
-  controller
-  context
-
-This info can be passed into directly fired control events.. 
-
 
 .kv files can still define functions using lambda and accept *args and such. 
-Therefore I can just pass in app and everything is available everywhere. 
-
-pages, regions and elements can be given (and stripped of) the controller when focused.
-a 'hot' reference that is deleted (how can this be done faster?)
-
-should FocusWidgets be given controller / a control slot? yes, for abstraction purposes at least
-  controller? No. only contexts get it native. Still accessible through app arg, but regions might need it 
-  internally.. (e.g. on_press calling on_delve ... where will it get app? )
-              (this raises an issue, I think press should trigger focus, and then delve 'event'?)
-
-on_press:
-  controller = root.controller
-  controller.focus = self     # properties are appropriate here
-  controller.trigger('delve')
 
 
-  what about getting data down?
 
-  Event Bubbling ? NO
 
+
+=======
 
 
 

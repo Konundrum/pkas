@@ -22,8 +22,10 @@ class DataModel(EventDispatcher):
     obj = {}
     obj['_class'] = self.__class__.__name__
     obj['_id'] = self._id
+
+
     for key in self.properties():
-        obj[key] = self[key]
+        obj[key] = repr(self[key])
 
     return obj
 
@@ -53,11 +55,99 @@ class DataModel(EventDispatcher):
 
 
 
+
+class DataList(EventDispatcher, list):
+  
+  def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    self.register_event_type('on_insert')
+    self.register_event_type('on_refresh')
+    self.register_event_type('on_remove')
+    self.register_event_type('on_set')
+    self.register_event_type('on_swap')
+  
+
+  def on_insert(self, i, x):
+    pass
+  def on_refresh(self):
+    pass
+  def on_remove(self, x):
+    pass
+  def on_set(self, i, v):
+    pass
+  def on_swap(self, a, b):
+    pass
+
+
+  def __delitem__(self, i):
+    super().__delitem__(i)
+    self.dispatch('remove', i)
+    
+
+  def __setitem__(self, i, v):
+    super().__setitem__(i, v)
+    self.dispatch('set', i, v)
+
+
+  def __repr__(self):
+    return '[' + ''.join('{},'.format(model._id) for model in self) + ']'
+
+
+  def clear(self):
+    super().clear()
+    self.dispatch('refresh', self)
+
+  def pop(self, i=None):
+    super().pop(i)
+    self.dispatch('remove', i)
+
+
+  def refresh(self):
+    self.dispatch('refresh', self)
+
+
+  def swap(self, a, b):
+    self[a], self[b] = self[b], self[a]
+    self.dispatch('swap', a, b)
+
+  def append(self, x):
+    super().append(x)
+    self.dispatch('insert', len(self) - 2, x)
+
+  
+  def extend(self, L):
+    for x in L:
+      self.append(x)
+
+
+  def insert(self, i, x):
+    super().insert(i, x)
+    self.dispatch('insert', i, x)
+
+
+  def remove(self, x):
+    i = self.index(x)
+    super().remove(x)
+    self.dispatch('remove', i)
+
+
+  def sort(self, cmp=None, key=None, reverse=False):
+    super().sort(cmp, key, reverse)
+    self.dispatch('refresh', self)
+
+
+  def reverse(self):
+    super().reverse()
+    self.dispatch('refresh', self)
+
+
+
+
+
+
 from random import random
 
-
-# Shouldn't be a dict, should own a dict..?
-class DataContext(EventDispatcher, dict):
+class DataContext(EventDispatcher):
 
   is_selected = BooleanProperty(False)
   name = StringProperty('')
@@ -67,8 +157,9 @@ class DataContext(EventDispatcher, dict):
   def __init__(self):
     super().__init__()
     self.factory = factory
-    self.clear_changes()
+    self._data = {}
     self._uids = {}
+    self.clear_changes()
 
 
   def clear_changes(self):
@@ -111,8 +202,8 @@ class DataContext(EventDispatcher, dict):
 
 
   def delete(self, _id):
-    model = self.deleted[_id] = self[_id]
-    del self[_id]
+    model = self.deleted[_id] = self._data[_id]
+    del self._data[_id]
 
     model.unbind_uid('on_change', self._uids[_id])
     del self._uids[_id]
@@ -148,8 +239,14 @@ class DataContext(EventDispatcher, dict):
       model._id = _id = self._get_id()
 
     self._uids[_id] = model.fbind('on_change', self.register_change)
-    super().__setitem__(_id, model)
+    self._data[_id] = model
     self.changed[_id] = model
 
+
+  def get(self, _id):
+    return self._data[_id]
+
+  def __getitem__(self, _id):
+    return self._data[_id]
 
 
