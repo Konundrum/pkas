@@ -41,6 +41,11 @@ class DataWidget(Widget):
     super().__init__(**kwargs)
 
 
+  def init(self, **kwargs):
+    for k, v in kwargs.items():
+      setattr(self, k, v)
+    return self
+
 
   def reset(self):
     self.is_selected = False
@@ -63,7 +68,8 @@ class DataView(Widget):
     self._on_refresh(data)
 
 
-  data_list = AliasProperty(_get_data, _set_data, bind=[])
+  collection = AliasProperty(_get_data, _set_data, bind=[])
+  data_widget = ObjectProperty(None)
 
 
   def __init__(self, **kwargs):
@@ -85,7 +91,7 @@ class DataView(Widget):
 
   def _bind_data(self):
     append_uid = self._bound_uids.append
-    fbind = self.data_list.fbind
+    fbind = self.collection.fbind
     append_uid(fbind('on_insert', self._on_insert))
     append_uid(fbind('on_refresh', self._on_refresh))
     append_uid(fbind('on_remove', self._on_remove))
@@ -96,7 +102,7 @@ class DataView(Widget):
 
   def _unbind_data(self):
     uids = self._bound_uids
-    unbind_uid = self.data_list.unbind_uid
+    unbind_uid = self.collection.unbind_uid
     unbind_uid('on_swap', uids.pop())
     unbind_uid('on_set', uids.pop())
     unbind_uid('on_remove', uids.pop())
@@ -108,6 +114,8 @@ class DataView(Widget):
   def _on_insert(self, data, i, model):
     widget = self.factory.make(self.data_widget, model=model)
     self.add_widget(widget, i)
+    # print('insert:', i)
+    # self.add_widget(widget)
 
 
 
@@ -149,47 +157,90 @@ class DataView(Widget):
 
 class Walker(EventDispatcher):
   
-  def _get_widget(self):
+  def _get_current(self):
     try:
-      return self._widgets[self.index]
+      return self._list[self.index]
     except IndexError:
-      return None
+      self.index = len(self._list) - 1
+      if self.index > -1:
+        return self._list[self.index]
+    return None
+        
 
-  def _set_widget(self, widget):
-    _index = self._widgets.index(widget)
+  def _set_current(self, current):
+    _index = self._list.index(current)
     self.index = _index
     return True
 
 
-  def _get_widgets(self):
-    return self._widgets
+  def _get_list(self):
+    return self._list
 
-  def _set_widgets(self, widgets):
+  def _set_list(self, list):
     self.index = 0
-    self._widgets = widgets
+    self._list = list
     return True
 
 
   index = NumericProperty(0)
-  widget = AliasProperty(_get_widget, _set_widget, bind=['index'])
-  widgets = AliasProperty(_get_widgets, _set_widgets, bind=[])
+  current = AliasProperty(_get_current, _set_current, bind=['index'])
+  list = AliasProperty(_get_list, _set_list, bind=[])
 
 
   def __init__(self, **kwargs):
+    self._list = []
     super().__init__(**kwargs)
-    if not self._widgets:
-      self._widgets = []
 
 
-  def forward(self):
-    if self.index < len(self._widgets) - 1:
+  def inc(self):
+    _len = len(self._list)
+    if self.index < _len - 1:
       self.index += 1
-    return self._widgets[self.index]
+
+    return self.current
 
 
-
-  def backward(self):
+  def dec(self):
     if self.index > 0:
       self.index -= 1
-    return self._widgets[self.index]
+  
+    return self.current
+
+
+
+
+class SelectorProperty(AliasProperty):
+  
+  def _get_selected(self, p):
+    return self._selected
+
+  def _set_selected(self, p, v):
+    if self._selected:
+      self._selected.is_selected = False
+
+    if v:
+      v.is_selected = True
+    
+    self._selected = v
+    return True
+
+
+  def __init__(self, v=None):
+    super().__init__(self._get_selected, self._set_selected, bind=[])
+    self._selected = v
+    if v:
+      v.is_selected = True
+
+
+
+
+class Selection():
+
+  def filter(self, fn):
+    models = self.models
+    self.models = {}
+
+    for _id, model in models.items():
+      if fn(model):
+        self.models[model._id] = model
 

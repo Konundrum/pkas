@@ -87,7 +87,6 @@ class DataModel(EventDispatcher):
     super().__init__(**kwargs)
 
 
-
   def __setattr__(self, k, v):
     self.dispatch('on_change', self)
     super().__setattr__(k, v)
@@ -102,7 +101,7 @@ class DataModel(EventDispatcher):
   def init(self, **kwargs):
     for k, v in kwargs.items():
       setattr(self, k, v)
-
+    return self
 
 
   def to_obj(self):
@@ -164,7 +163,6 @@ class DataCollection(DataModel):
 @specify
 class DataList(DataCollection):
 
-
   def __init__(self, *args, **kwargs):
     super().__init__(**kwargs)
     self.item_list = list(*args)
@@ -174,7 +172,11 @@ class DataList(DataCollection):
     del self.item_list[i]
     i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
-   
+
+
+  def __getitem__(self, i):
+    return self.item_list[i]
+
 
   def __setitem__(self, i, v):
     self.item_list.__setitem__(i, v)
@@ -196,7 +198,7 @@ class DataList(DataCollection):
 
   def append(self, x):
     self.item_list.append(x)
-    self.dispatch('on_insert', len(self.item_list) - 2, x)
+    self.dispatch('on_insert', 0, x)
 
 
 
@@ -211,10 +213,14 @@ class DataList(DataCollection):
       self.append(x)
 
 
+  def index(self, v):
+    return self.item_list.index(v)
+
 
   def insert(self, i, x):
-    self.item_list.insert(i, x)
-    self.dispatch('on_insert', i, x)
+    _list = self.item_list
+    _list.insert(i, x)
+    self.dispatch('on_insert', len(_list) - 1 - i, x)
 
 
 
@@ -251,8 +257,9 @@ class DataList(DataCollection):
 
 
   def swap(self, a, b):
-    self[a], self[b] = self[b], self[a]
-    _len =  len(self.item_list) - 1
+    l = self.item_list
+    l[a], l[b] = l[b], l[a]
+    _len =  len(l) - 1
     a, b = (_len - a), (_len - b)
     self.dispatch('on_swap', a, b)
 
@@ -311,8 +318,7 @@ class DataDict(DataCollection):
       i = len(_list)
       self._indices[key] = i
       _list.append(v)
-      i = len(_list) - 2 - i
-      self.dispatch('on_insert', i, v)
+      self.dispatch('on_insert', 0, v)
 
     
 
@@ -327,7 +333,7 @@ class DataDict(DataCollection):
 
 
   def copy(self):
-    raise Exception('Read Only!')
+    raise Exception('Copy not implemented!')
 
 
   def fromkeys(self):
@@ -335,9 +341,9 @@ class DataDict(DataCollection):
 
 
   def get(self, key):
-    return self.item_list[self.get_index(key)]
+    return self.item_list[self._get_index(key)]
 
-  def get_index(self, key):
+  def _get_index(self, key):
     return len(self.item_list) - 1 - self._indices[key]
 
   def items(self):
@@ -353,12 +359,10 @@ class DataDict(DataCollection):
     self.dispatch('on_refresh')
 
   def swap(self, a, b):
-    a, b = self.get_index(a), self.get_index(b)
-    _l = self.item_list
-    _l[a], _l[b] = _l[b], _l[a]
+    l = self.item_list
+    l[a], l[b] = l[b], l[a]
     
-    _len = len(self.item_list) - 1
-    a, b = (_len - a), (_len - b)
+    a, b = self._get_index(a), self._get_index(b)
     self.dispatch('swap', a, b)
 
 
@@ -483,56 +487,4 @@ class DataContext(DataModel):
         put(_id, **model.to_obj())
 
     self._clear_changes()
-
-
-
-
-class Selector(object):
-  
-
-  def __init__(self, multi=False):
-    super().__init__()
-    self.multi = multi
-    if multi:
-      self.models = {}
-    else:
-      self.model = None
-
-
-  def __iter__(self):
-    if not self.multi:
-      raise Exception('Cannot iterate single selector.')
-    return itr(self.models)
-
-
-
-  def deselect(self, model):
-    if self.multi:
-      del self.models[model._id]
-    else:
-      self.model = None
-
-    model.is_selected = False
-
-
-
-  def select(self, model):
-    if self.multi:
-      self.models[model._id] = model
-    else:
-      if self.model:
-        self.model.is_selected = False
-      self.model = model
-    
-    model.is_selected = True
-
-
-
-  def filter(self, fn):
-    models = self.models
-    self.models = {}
-
-    for _id, model in models.items():
-      if fn(model):
-        self.models[model._id] = model
 

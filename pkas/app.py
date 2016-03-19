@@ -60,7 +60,15 @@ class Controller(Widget):
 
 
   def _on_key_down(self, keyboard, keycode, text, modifiers):
-    action = ''.join([*('{} '.format(m) for m in modifiers), keycode[1]])
+    
+    _len = len(modifiers)
+    if _len is 0:
+      action = keycode[1]
+    elif _len is 1:
+      action = ''.join(['{} '.format(modifiers[0]), keycode[1]])
+    else:
+      action = ''.join(['ctrl shift ', keycode[1]])
+
     print(action, 'pressed')
 
     try:
