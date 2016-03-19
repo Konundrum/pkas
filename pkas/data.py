@@ -167,41 +167,41 @@ class DataList(DataCollection):
 
   def __init__(self, *args, **kwargs):
     super().__init__(**kwargs)
-    self._list = list(*args)
+    self.item_list = list(*args)
 
 
   def __delitem__(self, i):
-    del self._list[i]
-    i =  len(self._list) - i
+    del self.item_list[i]
+    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
    
 
   def __setitem__(self, i, v):
-    self._list.__setitem__(i, v)
-    i =  len(self._list) - 1 - i
+    self.item_list.__setitem__(i, v)
+    i =  len(self.item_list) - 1 - i
     self.dispatch('on_set', i, v)
 
 
   def __iter__(self):
-    return iter(self._list)
+    return iter(self.item_list)
 
 
   def __len__(self):
-    return len(self._list)
+    return len(self.item_list)
 
 
   def __repr__(self):
-    return repr(self._list)
+    return repr(self.item_list)
 
 
   def append(self, x):
-    self._list.append(x)
-    self.dispatch('on_insert', len(self._list) - 2, x)
+    self.item_list.append(x)
+    self.dispatch('on_insert', len(self.item_list) - 2, x)
 
 
 
   def clear(self):
-    self._list.clear()
+    self.item_list.clear()
     self.dispatch('on_refresh')
 
 
@@ -213,14 +213,14 @@ class DataList(DataCollection):
 
 
   def insert(self, i, x):
-    self._list.insert(i, x)
+    self.item_list.insert(i, x)
     self.dispatch('on_insert', i, x)
 
 
 
   def pop(self, i=None):
-    self._list.pop(i)
-    i =  len(self._list) - i
+    self.item_list.pop(i)
+    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
 
 
@@ -231,7 +231,7 @@ class DataList(DataCollection):
 
 
   def remove(self, x):
-    _list = self._list
+    _list = self.item_list
     i =  len(_list) - 1 - _list.index(x)
     _list.remove(x)
     self.dispatch('on_remove', i)
@@ -239,20 +239,20 @@ class DataList(DataCollection):
 
 
   def reverse(self):
-    self._list.reverse()
+    self.item_list.reverse()
     self.dispatch('on_refresh')
 
 
 
   def sort(self, cmp=None, key=None, reverse=False):
-    self._list.sort(cmp, key, reverse)
+    self.item_list.sort(cmp, key, reverse)
     self.dispatch('on_refresh')
 
 
 
   def swap(self, a, b):
     self[a], self[b] = self[b], self[a]
-    _len =  len(self._list) - 1
+    _len =  len(self.item_list) - 1
     a, b = (_len - a), (_len - b)
     self.dispatch('on_swap', a, b)
 
@@ -265,7 +265,7 @@ class DataDict(DataCollection):
 
   def __init__(self, dictionary={}, **kwargs):
     super().__init__(**kwargs)
-    self._list = _list = []
+    self.item_list = _list = []
     self._indices = _indices = {}
 
     append = _list.append
@@ -277,51 +277,52 @@ class DataDict(DataCollection):
 
 
   def __contains__(self, value):
-    return value in self._list
+    return value in self.item_list
 
 
   def __delitem__(self, key):
     i = self._indices[key]
     del self._indices[key]
-    del self._list[i]
-    i =  len(self._list) - i
+    del self.item_list[i]
+    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
 
 
   def __getitem__(self, key):
-    return self._list[self._indices[key]]
+    return self.item_list[self._indices[key]]
 
 
   def __iter__(self):
-    return iter(self._list)
+    return iter(self.item_list)
 
 
   def __len__(self):
-    return len(self._list)
+    return len(self.item_list)
 
 
   def __setitem__(self, key, v):
+    _list = self.item_list
     try:
       i = self._indices[key]
-      self._list[i] = v
-      i = len(self._list) - 1 - i
+      _list[i] = v
+      i = len(_list) - 1 - i
       self.dispatch('on_set', i, v)
     except KeyError:
-      i = len(self._list)
+      i = len(_list)
       self._indices[key] = i
-      self._list.append(v)
-      i = len(self._list) - 2 - i
+      _list.append(v)
+      i = len(_list) - 2 - i
       self.dispatch('on_insert', i, v)
 
     
 
   def __repr__(self):
-    repr(self._list)
+    repr(self.item_list)
 
 
   def clear(self):
     self._indices = {}
-    self._list.clear()
+    self.item_list.clear()
     self.dispatch('on_refresh')
 
 
@@ -334,29 +335,29 @@ class DataDict(DataCollection):
 
 
   def get(self, key):
-    return self._list[self.get_index(key)]
+    return self.item_list[self.get_index(key)]
 
   def get_index(self, key):
-    return len(self._list) - 1 - self._indices[key]
+    return len(self.item_list) - 1 - self._indices[key]
 
   def items(self):
-    return iter(self._list)
+    return iter(self.item_list)
 
   def keys(self):
     return self._indices.keys()
 
   def values(self):
-    return iter(self._list)
+    return iter(self.item_list)
 
   def refresh(self):
     self.dispatch('on_refresh')
 
   def swap(self, a, b):
     a, b = self.get_index(a), self.get_index(b)
-    _l = self._list
+    _l = self.item_list
     _l[a], _l[b] = _l[b], _l[a]
     
-    _len = len(self._list) - 1
+    _len = len(self.item_list) - 1
     a, b = (_len - a), (_len - b)
     self.dispatch('swap', a, b)
 
@@ -506,22 +507,24 @@ class Selector(object):
 
 
   def deselect(self, model):
-    model.is_selected = False
     if self.multi:
       del self.models[model._id]
     else:
       self.model = None
 
+    model.is_selected = False
+
 
 
   def select(self, model):
-    model.is_selected = True
     if self.multi:
       self.models[model._id] = model
     else:
       if self.model:
         self.model.is_selected = False
       self.model = model
+    
+    model.is_selected = True
 
 
 

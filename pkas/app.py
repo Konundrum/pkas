@@ -42,23 +42,7 @@ class Controller(Widget):
     return switcher
 
 
-  def _get_context(self):
-    return self._context
-
-  def _set_context(self, context):
-    if context is self._context:
-      return False
-    if self._context:
-      self._context.is_selected = False
-    
-    self._context = context
-    context.is_selected = True
-    return True
-
-
-
   binds = ObjectProperty(None)
-  context = AliasProperty(_get_context, _set_context, bind=[])
   root = AliasProperty(_gen_get('root'), _gen_set('root'), bind=[])
   page = AliasProperty(_gen_get('page'), _gen_set('page'), bind=[])
   region = AliasProperty(_gen_get('region'), _gen_set('region'), bind=[])
@@ -66,7 +50,7 @@ class Controller(Widget):
 
 
   def __init__(self, **kwargs):
-    self._context = self._root = self._page = self._region = self._focus = None
+    self._root = self._page = self._region = self._focus = None
     super().__init__(**kwargs)
     
     keyboard = Window.request_keyboard(lambda:None, self)
