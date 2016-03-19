@@ -1,7 +1,8 @@
 from .data import factory
 from kivy.event import EventDispatcher
-from kivy.properties import AliasProperty, BooleanProperty, ObjectProperty
+from kivy.properties import AliasProperty, BooleanProperty, NumericProperty, ObjectProperty
 from kivy.uix.widget import Widget
+from kivy.uix.textinput import TextInput
 
 from os.path import join
 from kivy.lang import Builder
@@ -33,7 +34,6 @@ class Interactive(EventDispatcher):
 
 class DataWidget(Widget):
 
-  is_selected = BooleanProperty(False)
   model = ObjectProperty(None, rebind=True, allownone=True)
 
 
@@ -57,13 +57,13 @@ class DataView(Widget):
 
   def _set_data(self, data):
     if self._data:
-      self.unbind_data()
+      self._unbind_data()
     self._data = data
-    self.bind_data()
-    self.on_refresh(data)
+    self._bind_data()
+    self._on_refresh(data)
 
 
-  data = AliasProperty(_get_data, _set_data, bind=[])
+  data_list = AliasProperty(_get_data, _set_data, bind=[])
 
 
   def __init__(self, **kwargs):
@@ -77,26 +77,26 @@ class DataView(Widget):
     
   def __del__(self):
     try:
-      self.unbind_data()
+      self._unbind_data()
     except IndexError:
       pass
 
 
 
-  def bind_data(self):
+  def _bind_data(self):
     append_uid = self._bound_uids.append
-    fbind = self.data.fbind
-    append_uid(fbind('on_insert', self.on_insert))
-    append_uid(fbind('on_refresh', self.on_refresh))
-    append_uid(fbind('on_remove', self.on_remove))
-    append_uid(fbind('on_set', self.on_set))
-    append_uid(fbind('on_swap', self.on_swap))
+    fbind = self.data_list.fbind
+    append_uid(fbind('on_insert', self._on_insert))
+    append_uid(fbind('on_refresh', self._on_refresh))
+    append_uid(fbind('on_remove', self._on_remove))
+    append_uid(fbind('on_set', self._on_set))
+    append_uid(fbind('on_swap', self._on_swap))
 
 
 
-  def unbind_data(self):
+  def _unbind_data(self):
     uids = self._bound_uids
-    unbind_uid = self.data.unbind_uid
+    unbind_uid = self.data_list.unbind_uid
     unbind_uid('on_swap', uids.pop())
     unbind_uid('on_set', uids.pop())
     unbind_uid('on_remove', uids.pop())
@@ -105,13 +105,13 @@ class DataView(Widget):
 
 
 
-  def on_insert(self, data, i, model):
+  def _on_insert(self, data, i, model):
     widget = self.factory.make(self.data_widget, model=model)
     self.add_widget(widget, i)
 
 
 
-  def on_refresh(self, data):
+  def _on_refresh(self, data):
     widget_class = self.data_widget
     make, recycle = self.factory.make, self.factory.recycle
     add, remove = self.add_widget, self.remove_widget
@@ -125,14 +125,14 @@ class DataView(Widget):
 
 
 
-  def on_remove(self, data, i):
+  def _on_remove(self, data, i):
     widget = self.children[i]
     self.remove_widget(widget)
     self.factory.recycle(widget)
 
 
 
-  def on_set(self, data, i, model):
+  def _on_set(self, data, i, model):
     widget = self.factory.make(self.data_widget, model=model)
     old_widget = self.children[i]
     self.children[i] = widget
@@ -140,7 +140,7 @@ class DataView(Widget):
 
 
 
-  def on_swap(self, data, a, b):
+  def _on_swap(self, data, a, b):
     children = self.children
     children[a], children[b] = children[b], children[a]
 
@@ -149,39 +149,47 @@ class DataView(Widget):
 
 class Walker(EventDispatcher):
   
-  def _get_position(self):
+  def _get_widget(self):
     try:
-      return self._widgets[self._index]
+      return self._widgets[self.index]
     except IndexError:
       return None
 
-  def _set_position(self, widget):
-    index = self._widgets.index(widget)
-    if index != self._index:
-      self._index = index
+  def _set_widget(self, widget):
+    _index = self._widgets.index(widget)
+    self.index = _index
+    return True
 
 
-  position = AliasProperty(_get_position, _set_position, bind=[])
-  
+  def _get_widgets(self):
+    return self._widgets
 
-
-  def __init__(self, widgets, index = 0):
-    super().__init__()
+  def _set_widgets(self, widgets):
+    self.index = 0
     self._widgets = widgets
-    self._index = index
+    return True
+
+
+  index = NumericProperty(0)
+  widget = AliasProperty(_get_widget, _set_widget, bind=['index'])
+  widgets = AliasProperty(_get_widgets, _set_widgets, bind=[])
+
+
+  def __init__(self, **kwargs):
+    super().__init__(**kwargs)
+    if not self._widgets:
+      self._widgets = []
+
+
+  def forward(self):
+    if self.index < len(self._widgets) - 1:
+      self.index += 1
+    return self._widgets[self.index]
 
 
 
-  def increment(self):
-    if self._index < len(self._widgets) - 1:
-      self._index += 1
-    return self._widgets[self._index]
+  def backward(self):
+    if self.index > 0:
+      self.index -= 1
+    return self._widgets[self.index]
 
-
-
-  def decrement(self):
-    if self._index > 0:
-      self._index -= 1
-    return self._widgets[self._index]
-
-    

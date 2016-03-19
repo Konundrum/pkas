@@ -1,119 +1,111 @@
 import json
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.properties import AliasProperty
+from kivy.properties import AliasProperty, ObjectProperty
 from kivy.uix.widget import Widget
-
+AE = AttributeError
 
 
 
 class Controller(Widget):
 
 
-  def _switch_active(self, old, new):
-    if new is old:
+  def _gen_get(prop):
+    prop = '_{}'.format(prop)
+    
+    def getter(self):
+      return getattr(self, prop)
+
+    return getter
+
+
+  def _gen_set(prop):
+    prop = '_{}'.format(prop)
+    
+    def switcher(self, new_val):
+      old_val = getattr(self, prop)
+
+      if new_val is old_val:
+        return False
+      
+      if old_val:
+        old_val.on_inactive(self)
+        old_val.is_active = False
+      
+      if new_val:
+        new_val.on_active(self)
+        new_val.is_active = True
+      
+      setattr(self, prop, new_val)
+      return True
+
+    return switcher
+
+
+  def _get_context(self):
+    return self._context
+
+  def _set_context(self, context):
+    if context is self._context:
       return False
-    if old:
-      old.on_inactive(self)
-      old.is_active = False
-    if new:
-      new.on_active(self)
-      new.is_active = True
+    if self._context:
+      self._context.is_selected = False
+    
+    self._context = context
+    context.is_selected = True
     return True
 
 
-  def _get_page(self):
-    return self._page
 
-  def _set_page(self, page):
-    if self._switch_active(self._page, page):
-      self._page = page
-      return True
+  binds = ObjectProperty(None)
+  context = AliasProperty(_get_context, _set_context, bind=[])
+  root = AliasProperty(_gen_get('root'), _gen_set('root'), bind=[])
+  page = AliasProperty(_gen_get('page'), _gen_set('page'), bind=[])
+  region = AliasProperty(_gen_get('region'), _gen_set('region'), bind=[])
+  focus = AliasProperty(_gen_get('focus'), _gen_set('focus'), bind=[])  
+
+
+  def __init__(self, **kwargs):
+    self._context = self._root = self._page = self._region = self._focus = None
+    super().__init__(**kwargs)
     
-
-  def _get_region(self):
-    return self._region
-
-  def _set_region(self, region):
-    if self._switch_active(self._region, region):
-      self._region = region
-      print('set region', region)
-      return True
-
-
-  def _get_focus(self):
-    return self._focus
-
-  def _set_focus(self, focus):
-    if self._switch_active(self._focus, focus):
-      self._focus = focus
-      return True
-
-
-  page = AliasProperty(_get_page, _set_page, bind=[])
-  region = AliasProperty(_get_region, _set_region, bind=[])
-  focus = AliasProperty(_get_focus, _set_focus, bind=[])
-  
-
-
-  def __init__(self, app):
-    super().__init__()
-    self._page = self._region = self._focus = None
-    self.app = app
-    self._key_binds = self._parse_keys(app.config)
-    self.take_control()
+    keyboard = Window.request_keyboard(lambda:None, self)
+    keyboard.bind(on_key_down=self._on_key_down)
+    self._keyboard = keyboard
 
 
 
-  def take_control(self):
-    self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
-    self._keyboard.bind(on_key_down=self._on_keyboard_down)
+  def _on_key_down(self, keyboard, keycode, text, modifiers):
+    action = ''.join([*('{} '.format(m) for m in modifiers), keycode[1]])
+    print(action, 'pressed')
 
-
-
-  def _keyboard_closed(self):
-    self._keyboard.unbind(on_key_down=self._on_keyboard_down)
-    self._keyboard = None
-
-
-
-  def _try_action(self, widget, cmd):
     try:
-      cb = getattr(widget, cmd)
-    except AttributeError:
+      cmd = self.binds[action]
+    except KeyError:
       return False
+
+    try:
+      cb = getattr(self._focus, cmd)
+    except AE:
+      try:
+        cb = getattr(self._region, cmd)
+      except AE:
+        try:
+          cb = getattr(self._page, cmd)
+        except AE:
+          try:
+            cb = getattr(self._root, cmd)
+          except AE:
+            return False
 
     cb(self)
     return True
 
 
 
-  def _on_keyboard_down(self, keyboard, keycode, text, modifiers):
-    print(keycode[1], modifiers, 'key pressed')
-    try:
-      cmd = self._key_binds[keycode[1]]
-    except KeyError:
-      return
-
-    cmd = 'on_{cmd}'.format(cmd=cmd)
-    
-    self._try_action(self._focus, cmd) or \
-    self._try_action(self._region, cmd) or \
-    self._try_action(self._page, cmd) or \
-    self._try_action(self.app.root, cmd)    
-
-
-
-  def _parse_keys(self, config):
-    binds = {}
-    if config:
-      print('in parse keys')
-      for cmd, key_list in config.items('keybinds'):
-        for key in json.loads(key_list):
-          binds[key] = cmd
-          print('bound:', key, cmd)
-
-    return binds
+  def release_keyboard(self):
+    self._keyboard.unbind(on_key_down=self._on_key_down)
+    self._keyboard = None
 
 
 
@@ -127,11 +119,10 @@ class PKApp(App):
 
   
   def on_start(self):
-    self.controller = Controller(self)
-    self.root.on_active(self)
+    binds = {}
+    for cmd, key_list in self.config.items('keybinds'):
+      for key in json.loads(key_list):
+        binds[key] = 'on_{}'.format(cmd)
 
-
-
-  def on_stop(self):
-    self.root.on_inactive(self)
+    self.controller = Controller(binds=binds, root=self.root)
 
