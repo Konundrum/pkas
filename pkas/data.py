@@ -273,11 +273,11 @@ class DataDict(DataCollection):
   def __init__(self, dictionary={}, **kwargs):
     super().__init__(**kwargs)
     self.item_list = _list = []
-    self._indices = _indices = {}
+    self._keys = _keys = []
 
     append = _list.append
     for key, model in dictionary:
-      _indices[key] = len(_list)
+      _keys.append(key)
       append(model)
 
     self.refresh()
@@ -288,15 +288,15 @@ class DataDict(DataCollection):
 
 
   def __delitem__(self, key):
-    i = self._indices[key]
-    del self._indices[key]
+    i = self._keys.index(key)
+    del self._keys[i]
     del self.item_list[i]
     i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
 
 
   def __getitem__(self, key):
-    return self.item_list[self._indices[key]]
+    return self.item_list[self._keys.index(key)]
 
 
   def __iter__(self):
@@ -309,48 +309,41 @@ class DataDict(DataCollection):
 
   def __setitem__(self, key, v):
     _list = self.item_list
+    _keys = self._keys
     try:
-      i = self._indices[key]
+      i = _keys.index(key)
       _list[i] = v
       i = len(_list) - 1 - i
       self.dispatch('on_set', i, v)
-    except KeyError:
-      i = len(_list)
-      self._indices[key] = i
+    except ValueError:
+      _keys.append(key)
       _list.append(v)
       self.dispatch('on_insert', 0, v)
 
     
-
   def __repr__(self):
     repr(self.item_list)
 
 
   def clear(self):
-    self._indices = {}
+    self._keys.clear()
     self.item_list.clear()
     self.dispatch('on_refresh')
-
 
   def copy(self):
     raise Exception('Copy not implemented!')
 
-
   def fromkeys(self):
-    return self._indices.fromkeys()
-
+    return iter(self._keys)
 
   def get(self, key):
-    return self.item_list[self._get_index(key)]
-
-  def _get_index(self, key):
-    return len(self.item_list) - 1 - self._indices[key]
+    return self.item_list[self._keys.index(key)]
 
   def items(self):
     return iter(self.item_list)
 
   def keys(self):
-    return self._indices.keys()
+    return iter(self._keys)
 
   def values(self):
     return iter(self.item_list)
@@ -359,10 +352,13 @@ class DataDict(DataCollection):
     self.dispatch('on_refresh')
 
   def swap(self, a, b):
+    index = self._keys.index
     l = self.item_list
-    l[a], l[b] = l[b], l[a]
+    _len =  len(l) - 1
     
-    a, b = self._get_index(a), self._get_index(b)
+    a, b = index(a), index(b)
+    l[a], l[b] = l[b], l[a]
+    a, b = (_len - a), (_len - b)    
     self.dispatch('swap', a, b)
 
 
