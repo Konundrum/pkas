@@ -87,7 +87,7 @@ class DataModel(EventDispatcher):
 
 
   def __setattr__(self, k, v):
-    self.dispatch('on_change', self)
+    self.dispatch('on_change')
     super().__setattr__(k, v)
 
 
@@ -113,7 +113,7 @@ class DataModel(EventDispatcher):
 
 
 
-  def on_change(self, v):
+  def on_change(self):
     pass
 
 
@@ -165,12 +165,15 @@ class DataList(DataCollection):
   def __init__(self, *args, **kwargs):
     super().__init__(**kwargs)
     self.item_list = list(*args)
+    self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
 
   def __delitem__(self, i):
     del self.item_list[i]
     i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
+    self.dispatch('on_change')
 
 
   def __getitem__(self, i):
@@ -181,6 +184,7 @@ class DataList(DataCollection):
     self.item_list.__setitem__(i, v)
     i =  len(self.item_list) - 1 - i
     self.dispatch('on_set', i, v)
+    self.dispatch('on_change')
 
 
   def __iter__(self):
@@ -198,13 +202,14 @@ class DataList(DataCollection):
   def append(self, x):
     self.item_list.append(x)
     self.dispatch('on_insert', 0, x)
+    self.dispatch('on_change')
 
 
 
   def clear(self):
     self.item_list.clear()
     self.dispatch('on_refresh')
-
+    self.dispatch('on_change')
 
   
   def extend(self, L):
@@ -220,6 +225,7 @@ class DataList(DataCollection):
     _list = self.item_list
     _list.insert(i, x)
     self.dispatch('on_insert', len(_list) - 1 - i, x)
+    self.dispatch('on_change')
 
 
 
@@ -227,11 +233,13 @@ class DataList(DataCollection):
     self.item_list.pop(i)
     i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
+    self.dispatch('on_change')
 
 
 
   def refresh(self):
     self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
 
 
@@ -240,18 +248,21 @@ class DataList(DataCollection):
     i =  len(_list) - 1 - _list.index(x)
     _list.remove(x)
     self.dispatch('on_remove', i)
+    self.dispatch('on_change')
 
 
 
   def reverse(self):
     self.item_list.reverse()
     self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
 
 
   def sort(self, cmp=None, key=None, reverse=False):
     self.item_list.sort(cmp, key, reverse)
     self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
 
 
@@ -261,6 +272,7 @@ class DataList(DataCollection):
     _len =  len(l) - 1
     a, b = (_len - a), (_len - b)
     self.dispatch('on_swap', a, b)
+    self.dispatch('on_change')
 
 
 
@@ -280,6 +292,7 @@ class DataDict(DataCollection):
       append(model)
 
     self.refresh()
+    self.dispatch('on_change')
 
 
   def __contains__(self, value):
@@ -292,6 +305,7 @@ class DataDict(DataCollection):
     del self.item_list[i]
     i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
+    self.dispatch('on_change')
 
 
   def __getitem__(self, key):
@@ -319,6 +333,8 @@ class DataDict(DataCollection):
       _list.append(v)
       self.dispatch('on_insert', 0, v)
 
+    self.dispatch('on_change')
+
     
   def __repr__(self):
     repr(self.item_list)
@@ -328,6 +344,7 @@ class DataDict(DataCollection):
     self._keys.clear()
     self.item_list.clear()
     self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
   def copy(self):
     raise Exception('Copy not implemented!')
@@ -349,6 +366,7 @@ class DataDict(DataCollection):
 
   def refresh(self):
     self.dispatch('on_refresh')
+    self.dispatch('on_change')
 
   def swap(self, a, b):
     index = self._keys.index
@@ -359,6 +377,7 @@ class DataDict(DataCollection):
     l[a], l[b] = l[b], l[a]
     a, b = (_len - a), (_len - b)    
     self.dispatch('swap', a, b)
+    self.dispatch('on_change')
 
 
 

@@ -97,7 +97,7 @@ class DataView(Layout):
 
   def _bind_data(self):
     append_uid = self._bound_uids.append
-    fbind = self.data.fbind
+    fbind = self._data.fbind
     append_uid(fbind('on_insert', self._on_insert))
     append_uid(fbind('on_refresh', self._on_refresh))
     append_uid(fbind('on_remove', self._on_remove))
@@ -108,7 +108,7 @@ class DataView(Layout):
 
   def _unbind_data(self):
     uids = self._bound_uids
-    unbind_uid = self.data.unbind_uid
+    unbind_uid = self._data.unbind_uid
     unbind_uid('on_swap', uids.pop())
     unbind_uid('on_set', uids.pop())
     unbind_uid('on_remove', uids.pop())
@@ -163,33 +163,66 @@ class DataView(Layout):
 
 
 class RecycleView(DataView):
+
+  def _get_data(self):
+    return self._collection
+
+
+  def _set_data(self, data):
+    if self._data:
+      self._unbind_data()
+      self._collection.unbind_uid(self._collection_uid)
+
+    if data is None:
+      self._data = self._collection = None
+      return False
+
+    self._collection = data
+    self._data = self._factory.make('DataList', self.gen_data())
+    
+    self._collection_uid = data.fbind('on_change', self.update)
+    print('bound data:', id(data))
+    self._bind_data()
+
+    self._on_refresh(self._data)
+    return True
+
+
+  data = AliasProperty(_get_data, _set_data, bind=[])
+
+
   
-  def __init__(self, data=None, **kwargs):
+  def __init__(self, **kwargs):
     super().__init__(**kwargs)
-    self.collection = data
-    self.update()
+    self._collection = []
 
 
   def gen_data(self):
     pass
 
 
-  def update(self):
-    collection = self.collection
-    data = self.data
-    index = -1
+  def update(self, collection):
+    data = self._data
+    print('in update', collection, data)
+    index = 0
 
     for model in self.gen_data():
-      index += 1
-      current = data[index]
-
-      if current is not model:
-        try:
+      try:
+        current = data[index]
+        if current is model:
+          index += 1
+          continue
+        else:
           i = data.index(model)
           del data[i]
-        except ValueError:
-          pass
+      except (IndexError, ValueError):
+        pass
 
-        data.insert(model, index)
+      data.insert(index, model)
+      index += 1
+
+    remaining = len(data) - index
+    for i in range(remaining):
+      del data[index]
 
 
