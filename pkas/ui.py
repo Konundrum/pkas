@@ -1,9 +1,8 @@
 from .data import factory
 from kivy.event import EventDispatcher
-from kivy.properties import AliasProperty, BooleanProperty, NumericProperty, ObjectProperty
+from kivy.properties import AliasProperty, BooleanProperty, ObjectProperty
 from kivy.uix.widget import Widget
 from kivy.uix.layout import Layout
-from kivy.uix.textinput import TextInput
 
 from os.path import join
 from kivy.lang import Builder
@@ -193,83 +192,4 @@ class RecycleView(DataView):
 
         data.insert(model, index)
 
-
-
-
-
-class Walker(EventDispatcher):
-  
-  def _get_current(self):
-    try:
-      return self._list[self.index]
-    except IndexError:
-      self.index = len(self._list) - 1
-      if self.index > -1:
-        return self._list[self.index]
-    return None
-        
-
-  def _set_current(self, current):
-    _index = self._list.index(current)
-    self.index = _index
-    return True
-
-
-  def _get_list(self):
-    return self._list
-
-  def _set_list(self, list):
-    self.index = 0
-    self._list = list
-    return True
-
-
-  index = NumericProperty(0)
-  current = AliasProperty(_get_current, _set_current, bind=['index'])
-  list = AliasProperty(_get_list, _set_list, bind=[])
-
-
-  def __init__(self, **kwargs):
-    self._list = []
-    super().__init__(**kwargs)
-
-
-  def inc(self):
-    _len = len(self._list)
-    if self.index < _len - 1:
-      self.index += 1
-
-    return self.current
-
-
-  def dec(self):
-    if self.index > 0:
-      self.index -= 1
-  
-    return self.current
-
-
-
-
-class SelectorProperty(AliasProperty):
-  
-  def _get_selected(self, p):
-    return self._selected
-
-  def _set_selected(self, p, v):
-    if self._selected:
-      self._selected.is_selected = False
-
-    if v:
-      v.is_selected = True
-    
-    self._selected = v
-    return True
-
-
-  def __init__(self, v=None):
-    super().__init__(self._get_selected, self._set_selected, bind=[])
-    self._selected = v
-    if v:
-      v.is_selected = True
 

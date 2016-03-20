@@ -10,7 +10,6 @@ QUEUE_LEN = 10
 
 class Factory(object):
 
-
   # Singleton reference
   _inst = None
 
@@ -355,11 +354,12 @@ class DataDict(DataCollection):
     index = self._keys.index
     l = self.item_list
     _len =  len(l) - 1
-    
+
     a, b = index(a), index(b)
     l[a], l[b] = l[b], l[a]
     a, b = (_len - a), (_len - b)    
     self.dispatch('swap', a, b)
+
 
 
 

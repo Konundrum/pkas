@@ -1,52 +1,21 @@
 import json
 from kivy.app import App
 from kivy.core.window import Window
-from kivy.properties import AliasProperty, ObjectProperty
+from kivy.properties import ObjectProperty
 from kivy.uix.widget import Widget
+from .utils import ActiveProperty
 AE = AttributeError
 
 
 
+
 class Controller(Widget):
-
-
-  def _gen_get(prop):
-    prop = '_{}'.format(prop)
-    
-    def getter(self):
-      return getattr(self, prop)
-
-    return getter
-
-
-  def _gen_set(prop):
-    prop = '_{}'.format(prop)
-    
-    def switcher(self, new_val):
-      old_val = getattr(self, prop)
-
-      if new_val is old_val:
-        return False
-      
-      if old_val:
-        old_val.on_inactive(self)
-        old_val.is_active = False
-      
-      if new_val:
-        new_val.on_active(self)
-        new_val.is_active = True
-      
-      setattr(self, prop, new_val)
-      return True
-
-    return switcher
-
-
+  
   binds = ObjectProperty(None)
-  root = AliasProperty(_gen_get('root'), _gen_set('root'), bind=[])
-  page = AliasProperty(_gen_get('page'), _gen_set('page'), bind=[])
-  region = AliasProperty(_gen_get('region'), _gen_set('region'), bind=[])
-  focus = AliasProperty(_gen_get('focus'), _gen_set('focus'), bind=[])  
+  root = ActiveProperty('root')
+  page = ActiveProperty('page')
+  region = ActiveProperty('region')
+  focus = ActiveProperty('focus')
 
 
   def __init__(self, **kwargs):
