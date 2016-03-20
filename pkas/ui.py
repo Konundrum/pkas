@@ -94,6 +94,10 @@ class DataView(Layout):
       pass
 
 
+  def child_index(self, child):
+    c = self.children
+    return len(c) - 1 - c.index(child)
+
 
   def _bind_data(self):
     append_uid = self._bound_uids.append
@@ -119,6 +123,7 @@ class DataView(Layout):
 
   def _on_insert(self, data, i, model):
     widget = self._factory.make(self.cls, model=model)
+    i = len(self.children) - i
     self.add_widget(widget, i)
 
 
@@ -126,18 +131,21 @@ class DataView(Layout):
   def _on_refresh(self, data):
     cls = self.cls
     make, recycle = self._factory.make, self._factory.recycle
-    add, remove = self.add_widget, self.remove_widget
+    add = self.add_widget
 
-    for widget in self.children:
+    # Reverse to leave indices in tact.
+    # (Needs testing!)
+    for widget in reversed(self.children):
       remove(widget)
       recycle(widget)
 
-    for model in data:
+    for model in iter(data):
       add(make(cls, model=model))
 
 
 
   def _on_remove(self, data, i):
+    i = len(self.children) - 1 - i
     widget = self.children[i]
     self.remove_widget(widget)
     self._factory.recycle(widget)
@@ -146,6 +154,7 @@ class DataView(Layout):
 
   # set only overwrites.
   def _on_set(self, data, i, model):
+    i = len(self.children) - 1 - i
     factory = self._factory
     old_widget = self.children[i]
     self.remove_widget(old_widget)
@@ -157,6 +166,8 @@ class DataView(Layout):
 
   def _on_swap(self, data, a, b):
     children = self.children
+    l =  len(children) - 1
+    a, b = (l - a), (l - b)
     children[a], children[b] = children[b], children[a]
 
 
@@ -181,7 +192,6 @@ class RecycleView(DataView):
     self._data = self._factory.make('DataList', self.gen_data())
     
     self._collection_uid = data.fbind('on_change', self.update)
-    print('bound data:', id(data))
     self._bind_data()
 
     self._on_refresh(self._data)
@@ -198,31 +208,30 @@ class RecycleView(DataView):
 
 
   def gen_data(self):
-    pass
+    return iter(self.data)
 
 
+  # bound to collection change
   def update(self, collection):
+    # currently displayed data
     data = self._data
-    print('in update', collection, data)
     index = 0
 
     for model in self.gen_data():
       try:
         current = data[index]
-        if current is model:
-          index += 1
-          continue
-        else:
+        if current is not model:
           i = data.index(model)
-          del data[i]
+          data.swap(index, i)
+        index += 1
+        continue
       except (IndexError, ValueError):
         pass
 
       data.insert(index, model)
       index += 1
+    
+    for i in reversed(range(index, len(data))):
+      del data[i]
 
-    remaining = len(data) - index
-    for i in range(remaining):
-      del data[index]
-
-
+    print('updated', data, collection)

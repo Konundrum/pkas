@@ -96,6 +96,9 @@ class DataModel(EventDispatcher):
     return self._id if self._id else self.__class__.__name__
 
 
+  def __str__(self):
+    return '<{}>@0x{}:{}'.format(self.__class__.__name__,id(self),repr(self))
+
 
   def init(self, **kwargs):
     for k, v in kwargs.items():
@@ -158,7 +161,7 @@ class DataCollection(DataModel):
 
 
 
-
+# New Plan is to represent directly.
 @specify
 class DataList(DataCollection):
 
@@ -171,7 +174,6 @@ class DataList(DataCollection):
 
   def __delitem__(self, i):
     del self.item_list[i]
-    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
     self.dispatch('on_change')
 
@@ -182,7 +184,6 @@ class DataList(DataCollection):
 
   def __setitem__(self, i, v):
     self.item_list.__setitem__(i, v)
-    i =  len(self.item_list) - 1 - i
     self.dispatch('on_set', i, v)
     self.dispatch('on_change')
 
@@ -201,7 +202,6 @@ class DataList(DataCollection):
 
   def append(self, x):
     self.item_list.append(x)
-    self.dispatch('on_insert', 0, x)
     self.dispatch('on_change')
 
 
@@ -224,14 +224,13 @@ class DataList(DataCollection):
   def insert(self, i, x):
     _list = self.item_list
     _list.insert(i, x)
-    self.dispatch('on_insert', len(_list) - 1 - i, x)
+    self.dispatch('on_insert', i, x)
     self.dispatch('on_change')
 
 
 
   def pop(self, i=None):
     self.item_list.pop(i)
-    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
     self.dispatch('on_change')
 
@@ -245,7 +244,6 @@ class DataList(DataCollection):
 
   def remove(self, x):
     _list = self.item_list
-    i =  len(_list) - 1 - _list.index(x)
     _list.remove(x)
     self.dispatch('on_remove', i)
     self.dispatch('on_change')
@@ -269,8 +267,6 @@ class DataList(DataCollection):
   def swap(self, a, b):
     l = self.item_list
     l[a], l[b] = l[b], l[a]
-    _len =  len(l) - 1
-    a, b = (_len - a), (_len - b)
     self.dispatch('on_swap', a, b)
     self.dispatch('on_change')
 
@@ -303,7 +299,6 @@ class DataDict(DataCollection):
     i = self._keys.index(key)
     del self._keys[i]
     del self.item_list[i]
-    i =  len(self.item_list) - i
     self.dispatch('on_remove', i)
     self.dispatch('on_change')
 
@@ -326,12 +321,12 @@ class DataDict(DataCollection):
     try:
       i = _keys.index(key)
       _list[i] = v
-      i = len(_list) - 1 - i
       self.dispatch('on_set', i, v)
     except ValueError:
+      i = len(_list)
       _keys.append(key)
       _list.append(v)
-      self.dispatch('on_insert', 0, v)
+      self.dispatch('on_insert', i, v)
 
     self.dispatch('on_change')
 
@@ -347,7 +342,7 @@ class DataDict(DataCollection):
     self.dispatch('on_change')
 
   def copy(self):
-    raise Exception('Copy not implemented!')
+    return dict(zip(self._keys, self.item_list))
 
   def fromkeys(self):
     return iter(self._keys)
@@ -371,11 +366,8 @@ class DataDict(DataCollection):
   def swap(self, a, b):
     index = self._keys.index
     l = self.item_list
-    _len =  len(l) - 1
-
     a, b = index(a), index(b)
     l[a], l[b] = l[b], l[a]
-    a, b = (_len - a), (_len - b)    
     self.dispatch('swap', a, b)
     self.dispatch('on_change')
 
@@ -451,7 +443,7 @@ class DataContext(DataModel):
 
   def _load_object(self, store, key, result):
     class_name = result.pop['_class']
-    self.put(self.factory.make(class_name, **store_obj))
+    self.put(self.factory.make(class_name, **result))
     
     print('filemanager: loaded object', result)
     
@@ -462,7 +454,7 @@ class DataContext(DataModel):
     store = self.store
 
     for key in store:
-      store_obj = store.async_get(self._load_object, key)
+      store.async_get(self._load_object, key)
     
     print('filemanager: loaded file')
 

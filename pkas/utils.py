@@ -40,7 +40,7 @@ class SelectorProperty(AliasProperty):
   def get(self, obj):
     return self._selected
 
-  # ContextTabRow, value
+
   def set(self, obj, value):
     if self._selected:
       self._selected.is_selected = False
@@ -65,41 +65,41 @@ class Walker(EventDispatcher):
   
   def _get_current(self):
     try:
-      return self._list[self.index]
+      return self._data[self.index]
     except IndexError:
-      self.index = len(self._list) - 1
+      self.index = len(self._data) - 1
       if self.index > -1:
-        return self._list[self.index]
+        return self._data[self.index]
     return None
         
 
   def _set_current(self, current):
-    _index = self._list.index(current)
+    _index = self._data.index(current)
     self.index = _index
     return True
 
 
-  def _get_list(self):
-    return self._list
+  def _get_data(self):
+    return self._data
 
-  def _set_list(self, list):
+  def _set_data(self, data):
     self.index = 0
-    self._list = list
+    self._data = data
     return True
 
 
   index = NumericProperty(0)
   current = AliasProperty(_get_current, _set_current, bind=['index'])
-  list = AliasProperty(_get_list, _set_list, bind=[])
+  data = AliasProperty(_get_data, _set_data, bind=[])
 
 
   def __init__(self, **kwargs):
-    self._list = []
+    self._data = []
     super().__init__(**kwargs)
 
 
   def inc(self):
-    _len = len(self._list)
+    _len = len(self._data)
     if self.index < _len - 1:
       self.index += 1
 
