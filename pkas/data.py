@@ -1,497 +1,441 @@
-from collections import defaultdict
+import json
+from collections import defaultdict, UserDict, UserList
 from kivy.event import EventDispatcher
 from kivy.properties import BooleanProperty, ObjectProperty, StringProperty
 
 
-QUEUE_LEN = 10
 
+STACK_LEN = 10
 
 
 
 class Factory(object):
+    '''The Facotry maintains an object pool of DataModels and DataWidgets.
 
-  # Singleton reference
-  _inst = None
+    Items to be recycled by the factory must implement both
+    .init(self, **kwargs) and .recycle(self), which will be used by the
+    Factory to setup and teardown objects. The Factory maintains a queue
+    for each class, the lengths of which may be set dynamically.
+    '''
 
-  def __new__(cls):
-    if not cls._inst:
-      cls._inst = inst = super().__new__(cls)
-      inst._ctors = {}
-      inst._recycled = defaultdict(list)
-      inst._queue_lengths = {}
-
-    return cls._inst
+    _inst = None  #Singleton reference
 
 
-
-  def make(self, class_name, *args, **kwargs):
-    try:
-      Ctor = self._ctors[class_name]
-    except KeyError:
-      raise Exception('factory.make:', name,'not specified.')
-
-    try:
-      return self._recycled[class_name].pop().init(*args, **kwargs)
-    except IndexError:
-      pass
-
-    return Ctor(*args, **kwargs)
+    def __new__(cls):
+        if not cls._inst:
+            cls._inst = inst = super().__new__(cls)
+            inst._ctors = {}
+            inst._recycled = defaultdict(list)
+            inst._stack_lengths = {}
+        return cls._inst
 
 
+    def make(self, cls, *args, **kwargs):
+        try:
+            Ctor = self._ctors[cls]
+        except KeyError:
+            raise Exception('factory.make:', cls, 'not specified.')
 
-  def recycle(self, obj):
-    class_name = obj.__class__.__name__
-    obj_queue = self._recycled[class_name]
-    max_queue = self._queue_lengths[class_name]
-
-    if len(obj_queue) < max_queue:
-      obj_queue.append(obj.reset())
-      
-
-
-  def set_queue_length(self, class_name, length):
-    self._queue_lengths[class_name] = length
-    recycled = self._recycled[class_name]
-    if len(recycled) > length:
-      self._recycled[class_name] = recycled[:length]
+        try:
+            return self._recycled[cls].pop().init(*args, **kwargs)
+        except IndexError:
+            return Ctor(*args, **kwargs)
 
 
-    
-  def specify(self, Ctor, length):
-    self._ctors[Ctor.__name__] = Ctor
-    self._queue_lengths[Ctor.__name__] = length
+    def recycle(self, obj):
+        cls = obj.__class__.__name__
+        obj_stack = self._recycled[cls]
 
+        if len(obj_stack) < self._stack_lengths[cls]:
+            obj_stack.append(obj.recycle())
+
+
+    def set_stack_length(self, cls, length):
+        self._stack_lengths[cls] = length
+        recycled = self._recycled[cls]
+
+        if len(recycled) > length:
+            self._recycled[cls] = recycled[:length]
+
+
+
+    def specify(self, Ctor, length):
+        self._ctors[Ctor.__name__] = Ctor
+        self._stack_lengths[Ctor.__name__] = length
 
 
 
 factory = Factory()
 
 
-def specify(Ctor, length=QUEUE_LEN):
-  factory.specify(Ctor, length)
-  return Ctor
 
+def specify(Ctor, stack_length=STACK_LEN):
+    factory.specify(Ctor, stack_length)
+    return Ctor
+
+
+
+class DataProperty(ObjectProperty):
+    '''For DataModels to hold DataCollections. Used for load detection.'''
+    pass
 
 
 
 @specify
 class DataModel(EventDispatcher):
+    '''Model that supports object recycling and file loading.'''
 
-  is_selected = BooleanProperty(False)
-
-
-  def __init__(self, **kwargs):
-    self.register_event_type('on_change')
-    self._id = None
-    super().__init__(**kwargs)
+    is_selected = BooleanProperty(False)
 
 
-  def __setattr__(self, k, v):
-    self.dispatch('on_change')
-    super().__setattr__(k, v)
+    def init(self, _id=None, **kwargs):
+        self._id = _id
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
 
 
-
-  def __repr__(self):
-    return self._id if self._id else self.__class__.__name__
-
-
-  def __str__(self):
-    return '<{}>@0x{}:{}'.format(self.__class__.__name__,id(self),repr(self))
+    def recycle(self):
+        self._id = None
+        for prop in self.properties():
+            prop.set(self, prop.defaultvalue)
+        return self
 
 
-  def init(self, **kwargs):
-    for k, v in kwargs.items():
-      setattr(self, k, v)
-    return self
+    def load(self, context):
+        for prop in self.properties():
+            if isinstance(prop, DataProperty):
+                prop.get(self).load(context)
 
 
-  def to_obj(self):
-    obj = {}
-    obj['_class'] = self.__class__.__name__
-    obj['_id'] = str(self._id)
-    for key in self.properties():
-        obj[key] = repr(self[key])
-    return obj
+    def to_json(self):
+        ''''''
+        output = []
+        entries = []
+        output.append('{')
+        append = entries.append
+        append('  "class" : "{}",'.format(self.__class__.__name__))
+        append('  "_id" : "{}"'.format(self._id))
+        for prop in self.properties():
+            value = prop.get(self)
+            if isinstance(value, DataCollection):
+                value = value.to_json()
+            append('  "{}" : {}'.format(prop.name, value))
+        output.append(',\n'.join(entries))
+        output.append('}')
+        return ''.join(output)
 
 
+    def __init__(self, _id=None, *args, **kwargs):
+        self._id = _id
+        super().__init__(*args, **kwargs)
 
-  def on_change(self):
-    pass
+    def __eq__(self, other):
+        return self is other
 
-
-
-  def reset(self):
-    self._id = None
-
-    props = self.properties()
-    for key in props:
-      setattr(self, key, props[key].defaultvalue)
-      
-    return self
-
+    def __ne__(self, other):
+        return self is not other
 
 
 
 class DataCollection(DataModel):
-  
-  def __init__(self, **kwargs):
-    self.register_event_type('on_insert')
-    self.register_event_type('on_refresh')
-    self.register_event_type('on_remove')
-    self.register_event_type('on_set')
-    self.register_event_type('on_swap')
-    super().__init__(**kwargs)
+    '''Base Collection class to hold collections of DataModels. The events
+    are used keep a DataView's children in sync. DataCollection may be
+    subclassed and provide a different collection->view event interface by
+    overriding the events list and providing the relevant methods.
+    '''
+
+    events = ['on_del','on_set','on_clear','on_insert','on_update','on_swap']
+
+    fallback = lambda *args: None
+    for evt in events:
+        locals()[evt] = fallback
+    del locals()['fallback']
 
 
-  def on_insert(self, i, x):
-    pass
-  
-  def on_refresh(self):
-    pass
-  
-  def on_remove(self, i):
-    pass
-  
-  def on_set(self, i, v):
-    pass
-  
-  def on_swap(self, a, b):
-    pass
-
-
-
-# New Plan is to represent directly.
-@specify
-class DataList(DataCollection):
-
-  def __init__(self, *args, **kwargs):
-    super().__init__(**kwargs)
-    self.item_list = list(*args)
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
-
-
-  def __delitem__(self, i):
-    del self.item_list[i]
-    self.dispatch('on_remove', i)
-    self.dispatch('on_change')
-
-
-  def __getitem__(self, i):
-    return self.item_list[i]
-
-
-  def __setitem__(self, i, v):
-    self.item_list.__setitem__(i, v)
-    self.dispatch('on_set', i, v)
-    self.dispatch('on_change')
-
-
-  def __iter__(self):
-    return iter(self.item_list)
-
-
-  def __len__(self):
-    return len(self.item_list)
-
-
-  def __repr__(self):
-    return repr(self.item_list)
-
-
-  def append(self, x):
-    self.item_list.append(x)
-    self.dispatch('on_change')
-
-
-
-  def clear(self):
-    self.item_list.clear()
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
-
-  
-  def extend(self, L):
-    for x in L:
-      self.append(x)
-
-
-  def index(self, v):
-    return self.item_list.index(v)
-
-
-  def insert(self, i, x):
-    _list = self.item_list
-    _list.insert(i, x)
-    self.dispatch('on_insert', i, x)
-    self.dispatch('on_change')
-
-
-
-  def pop(self, i=None):
-    self.item_list.pop(i)
-    self.dispatch('on_remove', i)
-    self.dispatch('on_change')
-
-
-
-  def refresh(self):
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
-
-
-
-  def remove(self, x):
-    _list = self.item_list
-    _list.remove(x)
-    self.dispatch('on_remove', i)
-    self.dispatch('on_change')
-
-
-
-  def reverse(self):
-    self.item_list.reverse()
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
-
-
-
-  def sort(self, cmp=None, key=None, reverse=False):
-    self.item_list.sort(cmp, key, reverse)
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
-
-
-
-  def swap(self, a, b):
-    l = self.item_list
-    l[a], l[b] = l[b], l[a]
-    self.dispatch('on_swap', a, b)
-    self.dispatch('on_change')
-
+    def __init__(self, *args, **kwargs):
+        for evt in self.events:
+            self.register_event_type(evt)
+        super().__init__(*args, **kwargs)
 
 
 
 @specify
-class DataDict(DataCollection):
+class DataList(DataCollection, UserList):
+    '''List implementation of DataCollection.
+    Supports the DataCollection event interface and file loading.
+    '''
 
 
-  def __init__(self, dictionary={}, **kwargs):
-    super().__init__(**kwargs)
-    self.item_list = _list = []
-    self._keys = _keys = []
+    def __init__(self, data=[], *args, **kwargs):
+        super().__init__(data, *args, **kwargs)
 
-    append = _list.append
-    for key, model in dictionary:
-      _keys.append(key)
-      append(model)
+    def __delitem__(self, i):
+        self.data.__delitem__(i)
+        self.dispatch('on_del', i)
 
-    self.refresh()
-    self.dispatch('on_change')
+    def __setitem__(self, i, v):
+        self.data.__setitem__(i, v)
+        self.dispatch('on_set', i, v)
 
+    def append(self, x):
+        self.data.append(x)
+        self.dispatch('on_insert', i, x)
 
-  def __contains__(self, value):
-    return value in self.item_list
+    def clear(self):
+        self.data.clear()
+        self.dispatch('on_clear')
 
+    def extend(self, L):
+        self.data.extend(L)
+        self.dispatch('on_update')
 
-  def __delitem__(self, key):
-    i = self._keys.index(key)
-    del self._keys[i]
-    del self.item_list[i]
-    self.dispatch('on_remove', i)
-    self.dispatch('on_change')
+    def insert(self, i, x):
+        self.data.insert(i, x)
+        self.dispatch('on_insert', i, x)
 
+    def pop(self, i=None):
+        self.data.pop(i)
+        self.dispatch('on_del', i)
 
-  def __getitem__(self, key):
-    return self.item_list[self._keys.index(key)]
+    def remove(self, x):
+        i = self.data.index(x)
+        del self[i]
 
+    def reverse(self):
+        self.data.reverse()
+        self.dispatch('on_update')
 
-  def __iter__(self):
-    return iter(self.item_list)
+    def sort(self, cmp=None, key=None, reverse=False):
+        self.data.sort(cmp, key, reverse)
+        self.dispatch('on_update')
 
-
-  def __len__(self):
-    return len(self.item_list)
-
-
-  def __setitem__(self, key, v):
-    _list = self.item_list
-    _keys = self._keys
-    try:
-      i = _keys.index(key)
-      _list[i] = v
-      self.dispatch('on_set', i, v)
-    except ValueError:
-      i = len(_list)
-      _keys.append(key)
-      _list.append(v)
-      self.dispatch('on_insert', i, v)
-
-    self.dispatch('on_change')
-
-    
-  def __repr__(self):
-    repr(self.item_list)
+    def swap(self, a, b):
+        d = self.data
+        d[a], d[b] = d[b], d[a]
+        self.dispatch('on_swap', a, b)
 
 
-  def clear(self):
-    self._keys.clear()
-    self.item_list.clear()
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
+    def load(self, context):
+        data = self.data
+        for index, item in enumerate(data):
+            if type(item) is str:
+                super()[index] = context[item]
 
-  def copy(self):
-    return dict(zip(self._keys, self.item_list))
 
-  def fromkeys(self):
-    return iter(self._keys)
+    def to_json(self):
+        output = []
+        entries = []
+        output.append('{')
+        entries.append('"class":"{}"'.format(self.__class__.__name__))
+        try: entries.append('"_id":"{}"'.format(self._id))
+        except AttributeError: pass
+        ids = []
+        for item in self.data:
+            ids.append(item._id)
+        entries.append('"data":"[{}]"'.format(','.join(ids)))
+        output.append(','.join(entries))
+        output.append('}')
+        return ''.join(output)
 
-  def get(self, key):
-    return self.item_list[self._keys.index(key)]
 
-  def items(self):
-    return iter(self.item_list)
 
-  def keys(self):
-    return iter(self._keys)
+@specify
+class DataDict(DataCollection, UserDict):
+    '''Dict implementation of DataCollection.
+    Supports DataCollection event interface and file loading.
+    '''
 
-  def values(self):
-    return iter(self.item_list)
+    def __init__(self, data=None, *args, **kwargs):
+        super().__init__(data, *args, **kwargs)
+        self.keys = []
+        append = self.keys.append
+        for key in self.data.keys():
+            append(key)
 
-  def refresh(self):
-    self.dispatch('on_refresh')
-    self.dispatch('on_change')
+    def __delitem__(self, key):
+        i = self.keys.index(key)
+        del self.keys[i]
+        del self.data[key]
+        self.dispatch('on_del', i)
 
-  def swap(self, a, b):
-    index = self._keys.index
-    l = self.item_list
-    a, b = index(a), index(b)
-    l[a], l[b] = l[b], l[a]
-    self.dispatch('swap', a, b)
-    self.dispatch('on_change')
+    def __setitem__(self, key, value):
+        keys = self.keys
+        self.data[key] = value
 
+        try:
+            i = keys.index(key)
+            self.dispatch('on_set', i, value)
+        except ValueError:
+            keys.append(key)
+            self.dispatch('on_insert', len(keys) - 1, value)
+
+    def __iter__(self):
+        return iter(self.keys)
+
+    def clear(self):
+        self.keys.clear()
+        self.data.clear()
+        self.dispatch('on_update')
+
+    def fromkeys(self, *args):
+        return self.data.fromkeys(*args)
+
+    def get(self, key, default=None):
+        return self.data.get(key, default)
+
+    def items(self):
+        return self.data.items()
+
+    def keys(self):
+        return self.keys
+
+    def values(self):
+        for key in self.keys:
+            yield self.data[key]
+
+    def setdefault(self, key, default=None):
+        if not key in self.keys:
+            self[key] = default
+
+    def pop(self, key):
+        index = self.keys.index(key)
+        del self.keys[i]
+        item = self.data.pop(key)
+        self.dispatch('on_del', i)
+        return item
+
+    def popitem(self):
+        key = self.keys.pop()
+        key, item = self.data.pop(key)
+        self.dispatch('on_del', len(self.keys))
+        return key, item
+
+    def swap(self, a, b):
+        index = self.keys.index
+        l = self.data
+        a, b = index(a), index(b)
+        l[a], l[b] = l[b], l[a]
+        self.dispatch('on_swap', a, b)
+
+    def update(self, *args, **kwargs):
+        self.data.update(*args, **kwargs)
+        self.dispatch('on_update')
+
+
+    def load(self, context):
+        data = self.data
+        for key, value in data:
+            if type(value) is str:
+                super()[key] = context[value]
+
+
+    def to_json(self):
+        output = []
+        entries = []
+        output.append('{')
+        entries.append('"class":"{}"'.format(self.__class__.__name__))
+        try: entries.append('"_id":"{}"'.format(self._id))
+        except AttributeError: pass
+        data = []
+        for key, value in self:
+            data.append('"{}":"{}"'.format(key, value._id))
+        entries.append('"data":{{}}'.format(','.join(entries)))
+        output.append(','.join(entries))
+        output.append('}')
+        return ''.join(output)
 
 
 
 from random import random
 
-
 @specify
-class DataContext(DataModel):
+class DataContext(DataDict):
+    '''DataDict for saving to and loading from files.
 
-  name = StringProperty('')
-  store = ObjectProperty(None, allownone=True)
+    Objects are stored by a unique key that is added as an attribute when
+    the model is added to the context. This key remains with the object
+    through saving.
+    '''
 
-
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-    self.factory = factory
-    self._data = {}
-    self._uids = {}
-    self._clear_changes()
+    name = StringProperty('default')
+    filename = StringProperty('')
 
 
-  def __contains__(self, _id):
-    return _id in self._data
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.register_event_type('on_save')
+        self.register_event_type('on_load')
+
+    def __repr__(self):
+        return 'Context {}: {}'.format(self.name, self.data)
+
+    def __delitem__(self, key):
+        item = self[key]
+        super().__delitem__(key)
+        factory.recycle(item)
+
+    def _get_id(self):
+        for i in range(3):
+            _id = str(random())
+            try:
+                self[_id]
+            except KeyError:
+                return _id
+
+        raise Exception('Did not create unique _id after 3 tries!')
 
 
-  def __getitem__(self, _id):
-    return self._data[_id]
+    def load(self):
+        '''Parse filename as json, update the dict and call load() on each.'''
+        make = self.factory.make
+        with open(self.filename, 'r') as f:
+            data = json.load(file = f, object_hook = lambda dct:
+                    make(dct.pop('class'), dct) if 'class' in dct else dct )
+
+        self.name = data.pop('name')
+        self.update(data)
+
+        for model in data.values():
+            model.load(self)
 
 
-  def __repr__(self):
-    return 'DataContext: {}'.format(self.name)
+    def save(self):
+        '''Iterate over items.to_json() and write to self.filename'''
+        with open(self.filename, 'w') as f:
+            for string in self.to_json():
+                f.write(string)
 
 
-  def _get_id(self):
-    for i in range(3):
-      _id = str(random())
-      try:
-        self[_id]
-      except KeyError:
-        return _id
-    
-    raise Exception('Did not create unique _id after 3 tries!')
+    def to_json(self):
+        '''Generator used by save() to write each object as json.'''
+        yield '{\n'
+        yield '"name" : "{}",\n'.format(self.name)
+        for _id, model in self:
+            yield '"{}" : {}'.format(_id, model.to_json())
+        yield '}\n'
+        raise StopIteration
 
 
-
-  def _clear_changes(self):
-    self.changed = {}
-    self.deleted = {}
-
-
-
-  def delete(self, _id):
-    model = self.deleted[_id] = self._data[_id]
-    del self._data[_id]
-
-    model.unbind_uid('on_change', self._uids[_id])
-    del self._uids[_id]
-
-    try:
-      del self.changed[_id]
-    except KeyError:
-      pass
-
-
-
-  def get(self, _id):
-    return self._data[_id]
-
-
-
-  def _load_object(self, store, key, result):
-    class_name = result.pop['_class']
-    self.put(self.factory.make(class_name, **result))
-    
-    print('filemanager: loaded object', result)
-    
-
-
-  def load(self):
-    factory = self.factory
-    store = self.store
-
-    for key in store:
-      store.async_get(self._load_object, key)
-    
-    print('filemanager: loaded file')
+    def on_save(self):
+        pass
+    def on_load(self):
+        pass
 
 
 
-  def put(self, model):
-    try:
-      _id = model._id    
-      if _id in self._data:
-        return
+class SelectorProperty(ObjectProperty):
+    '''Manages selection / deselection of models by assignment.'''
 
-    except AttributeError:
-      model._id = _id = self._get_id()
+    def set(self, obj, value):
+        old_value = super().get(obj)
 
-    self._uids[_id] = model.fbind('on_change', self._register_change)
-    self._data[_id] = model
-    self.changed[_id] = model
+        if old_value is not None:
+            old_value.is_selected = False
 
+        if value is not None:
+            value.is_selected = True
 
-
-  def _register_change(self, model):
-    self.changed[model._id]
-
-
-
-  def save(self):
-    delete = self.store.delete
-    put = self.store.put
-    recycle = self.factory.recycle
-
-    for _id, obj in self.deleted.items():
-      delete(_id)
-      recycle(obj)
-
-    for _id, model in self.changed.items():
-      for prop in model:
-        put(_id, **model.to_obj())
-
-    self._clear_changes()
+        super().set(obj, value)
+        return True
 

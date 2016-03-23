@@ -1,237 +1,305 @@
-from .data import factory
+from os.path import join
 from kivy.event import EventDispatcher
-from kivy.properties import AliasProperty, BooleanProperty, ObjectProperty
+from kivy.lang import Builder
+from kivy.properties import *
 from kivy.uix.widget import Widget
 from kivy.uix.layout import Layout
 
-from os.path import join
-from kivy.lang import Builder
+from .data import factory, DataCollection
 
 
 def load_kv(*args):
-  Builder.load_file(join(*args))
-
-
-
-
-class Interactive(EventDispatcher):
-
-  is_active = BooleanProperty(False)
-  
-  
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-
-
-  def on_active(self, app):
-    pass
-
-  def on_inactive(self, app):
-    pass
-
-
+    Builder.load_file(join(*args))
 
 
 class DataWidget(Widget):
+    '''Widget that represents a DataModel.
+    Expects a cls.defaultmodel instance as a fallback for kv bindings.
+    Implements the recycler init(**kwargs) and recycle() interface.
+    '''
 
-  model = ObjectProperty(None, rebind=True, allownone=True)
-
-
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-
-
-  def init(self, **kwargs):
-    for k, v in kwargs.items():
-      setattr(self, k, v)
-    return self
+    model = ObjectProperty(None, rebind=True, allownone=True)
+    defaultmodel = factory.make('DataModel')
 
 
-  def reset(self):
-    self.is_selected = False
-    self.model = self.property('model').defaultvalue
-    return self
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+    def init(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
+
+
+    def recycle(self):
+        self.model = self.defaultmodel
+        return self
+
+
+
+class CollectionProperty(ObjectProperty):
+    '''View property to bind and unbind from DataCollection events.
+    Uses datacollection.events and view._bound_uids for event binding.
+    '''
+
+    def __init__(self, **kwargs):
+        super().__init__(baseclass=DataCollection, **kwargs)
+
+
+    def set(self, view, data):
+        uids = view._bound_uids
+        old_data = self.get(view)
+        if old_data:
+            unbind_uid = old_data.unbind_uid
+            for evt in reversed(old_data.events):
+                unbind_uid(evt, uids.pop())
+
+        if data is not None:
+            append_uid = uids.append
+            fbind = data.fbind
+            for evt in data.events:
+                append_uid(fbind(evt, getattr(view, evt)))
+
+        super().set(view, data)
+        view.on_update(data)
+        return True
 
 
 
 
 class DataView(Layout):
+    '''Layout that keeps children in sync with data.
+    Complexity comes from the fact that children are kept in reverse order.
+    '''
 
-  def _get_data(self):
-    return self._data
-
-  def _set_data(self, data):
-    if self._data:
-      self._unbind_data()
-    self._data = data
-    self._bind_data()
-    self._on_refresh(data)
+    data = CollectionProperty()
+    cls = AliasProperty(lambda s: getattr(s, '_cls'),
+                        lambda s,v: setattr(s, '_cls', v.__name__),
+                        bind=[])
 
 
-  def _get_cls(self):
-    return self._cls.__name__
-
-  def _set_cls(self, cls):
-    self._cls = cls
-
-
-  cls = AliasProperty(_get_cls, _set_cls, bind=[])
-  data = AliasProperty(_get_data, _set_data, bind=[])
+    def __init__(self, *args, **kwargs):
+        self._bound_uids = []
+        self._factory = factory
+        super().__init__(**kwargs)
 
 
-  def __init__(self, **kwargs):
-    self._bound_uids = []
-    self._data = None
-    self._factory = factory
-    super().__init__(**kwargs)
+    def __del__(self):
+        try:
+            self._unbind_data()
+        except IndexError:
+            pass
 
 
-    
-  def __del__(self):
-    try:
-      self._unbind_data()
-    except IndexError:
-      pass
+    def get_child_index(self, child):
+        '''Returns the reversed index for use in DataCollections.'''
+        c = self.children
+        return len(c) - 1 - c.index(child)
 
 
-  def child_index(self, child):
-    c = self.children
-    return len(c) - 1 - c.index(child)
+    def on_del(self, data, i):
+        i = len(self.children) - 1 - i
+        widget = self.children[i]
+        self.remove_widget(widget)
+        self._factory.recycle(widget)
 
 
-  def _bind_data(self):
-    append_uid = self._bound_uids.append
-    fbind = self._data.fbind
-    append_uid(fbind('on_insert', self._on_insert))
-    append_uid(fbind('on_refresh', self._on_refresh))
-    append_uid(fbind('on_remove', self._on_remove))
-    append_uid(fbind('on_set', self._on_set))
-    append_uid(fbind('on_swap', self._on_swap))
+    def on_set(self, data, i, model):
+        i = len(self.children) - 1 - i
+        factory = self._factory
+        old_widget = self.children[i]
+
+        self.remove_widget(old_widget)
+        factory.recycle(old_widget)
+        widget = factory.make(self.cls, model=model)
+        self.add_widget(widget, i)
 
 
-
-  def _unbind_data(self):
-    uids = self._bound_uids
-    unbind_uid = self._data.unbind_uid
-    unbind_uid('on_swap', uids.pop())
-    unbind_uid('on_set', uids.pop())
-    unbind_uid('on_remove', uids.pop())
-    unbind_uid('on_refresh', uids.pop())
-    unbind_uid('on_insert', uids.pop())
+    def on_clear(self):
+        recycle = self._factory.recycle
+        for widget in self.children:
+            recycle(widget)
+        self.clear_widgets()
 
 
-
-  def _on_insert(self, data, i, model):
-    widget = self._factory.make(self.cls, model=model)
-    i = len(self.children) - i
-    self.add_widget(widget, i)
-
+    def on_insert(self, data, i, model):
+        widget = self._factory.make(self.cls, model=model)
+        i = len(self.children) - i
+        self.add_widget(widget, i)
 
 
-  def _on_refresh(self, data):
-    cls = self.cls
-    make, recycle = self._factory.make, self._factory.recycle
-    add = self.add_widget
+    def on_swap(self, data, a, b):
+        children = self.children
+        l =  len(children) - 1
+        a, b = (l - a), (l - b)
+        children[a], children[b] = children[b], children[a]
 
-    # Reverse to leave indices in tact.
-    # (Needs testing!)
-    for widget in reversed(self.children):
-      remove(widget)
-      recycle(widget)
 
-    for model in iter(data):
-      add(make(cls, model=model))
+    def on_update(self, data):
+        recycle = self._factory.recycle
+        for widget in self.children:
+            recycle(widget)
+
+        self.clear_widgets()
+
+        if data:
+            add_widget = self.add_widget
+            cls = self.cls
+            make = self._factory.make
+            for model in data:
+                add_widget(make(cls, model=model))
 
 
 
-  def _on_remove(self, data, i):
-    i = len(self.children) - 1 - i
-    widget = self.children[i]
-    self.remove_widget(widget)
-    self._factory.recycle(widget)
+class RecyclerProperty(CollectionProperty):
+    '''Binds and unbinds Collections.'''
+
+    def __init__(self, display_prop, **kwargs):
+        self.display_prop = display_prop
+        super().__init__(**kwargs)
+
+
+    def set(self, view, collection):
+        super().set(view, collection)
+        displayed = view._factory.make('DataList', view.gen_displayed())
+        setattr(view, self.display_prop, displayed)
+        return True
 
 
 
-  # set only overwrites.
-  def _on_set(self, data, i, model):
-    i = len(self.children) - 1 - i
-    factory = self._factory
-    old_widget = self.children[i]
-    self.remove_widget(old_widget)
-    factory.recycle(old_widget)
-    widget = factory.make(self.cls, model=model)
-    self.add_widget(widget, i)
+class RecyclerView(DataView):
+    '''Recyles widgets that are not in view.
+
+    RecyclerView maintains the .displayed list, matching the data models
+    yielded by gen_displayed() on changes to data. This means that data does not
+    need to be set explicitly and will be destructively modified if set.
+    '''
+
+    displayed = CollectionProperty()
+    data = RecyclerProperty('displayed')
+
+
+    def gen_displayed(self):
+        '''Default implementation simply copies self.data'''
+        return iter(self.data)
+
+
+    def update(self, collection):
+        '''Step through the current data and match in place.'''
+        displayed = self.displayed
+        index = -1
+
+        for model in self.gen_displayed():
+            index += 1
+            try:
+                current = displayed[index]
+                if current is not model:
+                    i = displayed.index(model)
+                    displayed.swap(index, i)
+                continue
+            except (IndexError, ValueError):
+                pass
+
+            displayed.insert(index, model)
+
+        for i in reversed(range(index + 1, len(displayed))):
+            del displayed[i]
 
 
 
-  def _on_swap(self, data, a, b):
-    children = self.children
-    l =  len(children) - 1
-    a, b = (l - a), (l - b)
-    children[a], children[b] = children[b], children[a]
+    def get_child_index(self, child):
+        '''Returns the reversed index for use in DataCollections.'''
+        data = self.data
+        return len(data) - 1 - data.index(child)
 
 
 
+class Interactive(EventDispatcher):
+    '''Mixin for Interactive Widgets'''
 
-class RecycleView(DataView):
+    is_active = BooleanProperty(False)
 
-  def _get_data(self):
-    return self._collection
-
-
-  def _set_data(self, data):
-    if self._data:
-      self._unbind_data()
-      self._collection.unbind_uid(self._collection_uid)
-
-    if data is None:
-      self._data = self._collection = None
-      return False
-
-    self._collection = data
-    self._data = self._factory.make('DataList', self.gen_data())
-    
-    self._collection_uid = data.fbind('on_change', self.update)
-    self._bind_data()
-
-    self._on_refresh(self._data)
-    return True
-
-
-  data = AliasProperty(_get_data, _set_data, bind=[])
-
-
-  
-  def __init__(self, **kwargs):
-    super().__init__(**kwargs)
-    self._collection = []
-
-
-  def gen_data(self):
-    return iter(self.data)
-
-
-  # bound to collection change
-  def update(self, collection):
-    # currently displayed data
-    data = self._data
-    index = 0
-
-    for model in self.gen_data():
-      try:
-        current = data[index]
-        if current is not model:
-          i = data.index(model)
-          data.swap(index, i)
-        index += 1
-        continue
-      except (IndexError, ValueError):
+    def on_active(self, controller):
+        pass
+    def on_inactive(self, controller):
         pass
 
-      data.insert(index, model)
-      index += 1
-    
-    for i in reversed(range(index, len(data))):
-      del data[i]
 
-    print('updated', data, collection)
+
+class ActiveProperty(ObjectProperty):
+    '''Activates and Deactivates Interactive Widgets'''
+
+    def __init__(self, allownone=True, **kwargs):
+        super().__init__(allownone=allownone, **kwargs)
+
+
+    def set(self, obj, value):
+        old_value = super().get(obj)
+
+        if value is old_value:
+            return False
+
+        if old_value:
+            old_value.is_active = False
+            old_value.on_inactive(obj)
+
+        if value:
+            value.is_active = True
+            value.on_active(obj)
+
+        super().set(obj, value)
+        return True
+
+
+
+class Walker(EventDispatcher):
+    '''Convenience class for walking lists.'''
+
+    def _get_index(self):
+        return self._index
+
+    def _set_index(self, i):
+        if i == self._index:
+            return False
+        self._index = i
+        return True
+
+    def _get_current(self):
+        _index = self._index
+        try: return self.data[_index]
+        except IndexError: pass
+
+        _max = len(self.data) - 1
+        if _max == -1: return None
+
+        self.index = _max
+        return self.data[_max]
+
+    def _set_current(self, current):
+        index = self.data.index(current)
+        self.index = index
+        return True
+
+
+    index = AliasProperty(_get_index, _set_index, bind=[])
+    current = AliasProperty(_get_current, _set_current, bind=['index', 'data'])
+    data = ObjectProperty(None)
+
+
+    def __init__(self, **kwargs):
+        self._index = 0
+        super().__init__(**kwargs)
+
+
+    def inc(self):
+        length = len(self.data)
+        if self.index < length - 1:
+            self.index = self.index + 1
+        return self.current
+
+
+    def dec(self):
+        if self.index > 0:
+            self.index -= 1
+        return self.current

@@ -1,6 +1,38 @@
+@property
+  def data(self):
+    return self._data
+
+  @data.setter
+  def data(self, data):
+    if self._data:
+      self._unbind_data()
+    if data:
+      self._data = data
+      self._bind_data()
+      self._on_update(data)
+
+  @data.deleter
+  def data(self):
+    if self._data:
+      self._unbind_data()
+      self._data = None
+
+  @property
+  def cls(self):
+    return self._cls
+
+
+  @cls.setter
+  def cls(self, cls):
+    self._cls = cls
+
+
 Change to passing controller in lieu of app
 
 
+
+have: a child model, unknown if it has a widget
+want: if has a widget, swap, if not, insert
 
 
 
@@ -10,7 +42,7 @@ What about data models???
     - pull in from xml!?
     parse_models
 
-This is an entertaining idea but overkill.. 
+This is an entertaining idea but overkill..
 
 
 The View instantiates the Adapter, passing
@@ -28,7 +60,7 @@ PKAdapter
 
 
 
-.kv files can still define functions using lambda and accept *args and such. 
+.kv files can still define functions using lambda and accept *args and such.
 
 
 
@@ -89,9 +121,9 @@ Stories establish relevance, refer to functional human needs (common functional 
 Narrowing down a problem:
 Domain : Relevance : Concept : Properties
 
-the ideal educational environment is one of group discovery, not to transfer knowledge.  
+the ideal educational environment is one of group discovery, not to transfer knowledge.
 
-(what about: deep vs surface structure of problems; training relevance) 
+(what about: deep vs surface structure of problems; training relevance)
 
 
 (This includes the central executive, phonologic loop, episodic buffer, visuospatial sketchpad, verbal information, long term memory, and visual information)
@@ -100,7 +132,7 @@ the ideal educational environment is one of group discovery, not to transfer kno
 
 
 politics
-authoritarianism: threat that practical concepts / way of life will be superseceded by replacement of overarching social structure. 
+authoritarianism: threat that practical concepts / way of life will be superseceded by replacement of overarching social structure.
 
 
 
@@ -119,8 +151,8 @@ then to discover and defend statements within this framework.
 
 metaphysics
 : bridges the gap between the technical and non-technical domains. This seems to be the only reasonable
-  way to approach understanding our everyday use of concepts like 'person' while understanding they have no 
-  reference in the world. 
+  way to approach understanding our everyday use of concepts like 'person' while understanding they have no
+  reference in the world.
 
 : logical framework / Metaphysical object-property-frame model
 
