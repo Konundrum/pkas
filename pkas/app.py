@@ -93,3 +93,4 @@ class PKApp(App):
                 binds[key] = 'on_{}'.format(cmd)
 
         self.controller = Controller(binds=binds, root=self.root)
+
