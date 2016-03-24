@@ -1,3 +1,14 @@
+"""
+Personal Kivy Application System
+
+This module provides a data and ui abstraction layer on top of kivy.
+The module supports three primary features: Recycling of DataModels and
+DataWidgets, views for displaying DataCollections, and a control system
+which delegates to Interactive widgets.
+
+
+"""
+
 from collections import defaultdict, UserDict, UserList
 import json
 from random import random
@@ -20,16 +31,16 @@ class Factory(object):
     '''
     The Factory maintains an object pool of DataModels and DataWidgets.
 
-    Items to be recycled by the factory must implement both
-    .reinit(self, **kwargs) and .recycle(self), which are used by the
-    Factory to setup and teardown objects. The Factory maintains a queue
-    for each class, the lengths of which may be set by set_stack_length.
+    Items to be recycled by the factory must implement both reinit(kwargs)
+    and recycle(), which are used by the Factory to setup and teardown
+    objects. The Factory maintains a stack for each class, the lengths
+    of which may be set by set_stack_length.
     '''
 
     _inst = None  #Singleton reference
 
     def __new__(cls):
-        if not cls._inst:
+        if cls._inst is None:
             cls._inst = inst = super().__new__(cls)
             inst._ctors = {}
             inst._recycled = defaultdict(list)
@@ -50,7 +61,9 @@ class Factory(object):
             raise Exception('factory.make:', cls, 'not specified.')
 
         try:
-            return self._recycled[cls].pop().reinit(*args, **kwargs)
+            obj = self._recycled[cls].pop().reinit(*args, **kwargs)
+            print('reused:', obj)
+            return obj
         except IndexError:
             return Ctor(*args, **kwargs)
 
@@ -67,6 +80,8 @@ class Factory(object):
 
         if len(obj_stack) < self._stack_lengths[cls]:
             obj_stack.append(obj.recycle())
+
+        print('Recycled:', obj)
 
 
     def set_stack_length(self, cls, length):
@@ -97,7 +112,7 @@ def specify(Ctor, stack_length=STACK_LEN):
 
 
 class DataProperty(ObjectProperty):
-    '''For DataModels to hold DataCollections. Used at file load.'''
+    '''For DataModels to hold other DataModels. Used at file load.'''
     pass
 
 
@@ -133,7 +148,6 @@ class DataModel(EventDispatcher):
 
 
     def to_json(self):
-        ''''''
         output = []
         entries = []
         output.append('{')
@@ -166,24 +180,24 @@ class DataModel(EventDispatcher):
 class DataCollection(DataModel):
     '''
     Base Collection class to hold collections of DataModels. The events
-    are used to keep a DataView's children in sync. DataCollection can
-    be subclassed to provide a different collection event interface,
-    by overriding the events list and providing the relevant methods.
+    can be used to keep a DataView's children in sync. DataCollection
+    can be subclassed to provide a different collection event interface,
+    by overriding the events list and providing corresponding methods.
     The recycle and reinit methods provided here clear and set
-    collection.data. If this is undesirable you may wish to call
-    DataWidget.recycle() directly in your own recycle implementation.
+    collection.data. If this is undesirable you may wish to call the
+    parent DataWidget methods directly while implementing your own.
     '''
 
     events = ['on_del','on_set','on_clear','on_insert','on_update','on_swap']
 
     fallback = lambda *args: None
-    for evt in events:
-        locals()[evt] = fallback
+    for event in events:
+        locals()[event] = fallback
     del locals()['fallback']
 
     def __init__(self, *args, **kwargs):
-        for evt in self.events:
-            self.register_event_type(evt)
+        for event in self.events:
+            self.register_event_type(event)
         super().__init__(*args, **kwargs)
 
     def recycle(self):
@@ -295,8 +309,10 @@ class DataDict(DataCollection, UserDict):
 
     def __delitem__(self, key):
         i = self.keys.index(key)
+        item = self[key]
         del self.keys[i]
         del self.data[key]
+        factory.recycle(item)
         self.dispatch('on_del', i)
 
     def __setitem__(self, key, value):
@@ -417,10 +433,6 @@ class DataContext(DataDict):
     def __repr__(self):
         return 'Context {}: {}'.format(self.name, self.data)
 
-    def __delitem__(self, key):
-        item = self[key]
-        super().__delitem__(key)
-        factory.recycle(item)
 
     def _get_id(self):
         for i in range(3):
@@ -482,7 +494,7 @@ class DataWidget(Widget):
     '''
     Widget that represents a DataModel.
     Expects a cls.defaultmodel instance as a fallback for kv bindings.
-    Implements the recycler init(**kwargs) and recycle() interface.
+    Implements the methods reinit(**kwargs) and recycle() for recycling.
     '''
 
     model = ObjectProperty(None, rebind=True, allownone=True)
@@ -508,29 +520,42 @@ class DataWidget(Widget):
 class CollectionProperty(ObjectProperty):
     '''
     Property to bind and unbind from DataCollection events.
-    Uses datacollection.events and host._bound_uids for event binding.
+    Uses datacollection.events and host._{prop}_uids for event binding.
     '''
 
     def __init__(self, **kwargs):
         super().__init__(baseclass=DataCollection, **kwargs)
+        self.uid_propname = '_{}_uids'.format(self.name)
+
+
+    def _bind(self, host, collection):
+        uids = getattr(host, self.uid_propname, [])
+        fbind = collection.fbind
+        for event in collection.events:
+            callback = getattr(host, event, False)
+            if callback:
+                uids.append(fbind(event, getattr(host, event)))
+        setattr(host, self.uid_propname, uids)
+
+
+    def _unbind(self, host, old_collection):
+        uids = getattr(host, self.uid_propname)
+        unbind_uid = old_collection.unbind_uid
+        for event in reversed(old_collection.events):
+            callback = getattr(host, event, False)
+            if callback:
+                unbind_uid(event, uids.pop())
 
 
     def set(self, host, collection):
-        uids = host._bound_uids
         old_collection = self.get(host)
-        if old_collection:
-            unbind_uid = old_collection.unbind_uid
-            for evt in reversed(old_collection.events):
-                unbind_uid(evt, uids.pop())
+        if old_collection is not None:
+            self._unbind(host, old_collection)
 
         if collection is not None:
-            append_uid = uids.append
-            fbind = collection.fbind
-            for evt in collection.events:
-                append_uid(fbind(evt, getattr(host, evt)))
+            self._bind(host, collection)
 
         super().set(host, collection)
-        host.on_update(collection)
         return True
 
 
@@ -546,7 +571,6 @@ class DataView(Layout):
 
 
     def __init__(self, *args, **kwargs):
-        self._bound_uids = []
         self._factory = factory
         super().__init__(**kwargs)
 
@@ -621,62 +645,95 @@ class DataView(Layout):
 
 class RecyclerProperty(CollectionProperty):
     '''
-    Binds and unbinds Collections to target DataList.
-    The host object must implement gen_data().
+    Instead of binding to callbacks of event names on the host like the
+    CollectionProperty, the RecyclerProperty accepts a target
+    CollectionProperty to update with the contents yielded by generator.
     '''
 
-    def __init__(self, target, **kwargs):
-        self.target = target
-        self._factory = factory
+    def __init__(self, target, generator, gen_update=None, **kwargs):
         super().__init__(**kwargs)
+        self._factory = factory
+        self.generator = generator
+        self.target = target
+        if gen_update is not None:
+            self.gen_update = gen_update
+
+
+    def _bind(self, host, collection):
+        uids = getattr(host, self.uid_propname, [])
+        fbind = collection.fbind
+
+        # bind every event to update()
+        for event in collection.events:
+            uids.append(fbind(event, self.gen_update(host)))
+
+        setattr(host, self.uid_propname, uids)
+
+
+    def _unbind(self, host, old_collection):
+        uids = getattr(host, self.uid_propname)
+        unbind_uid = old_collection.unbind_uid
+
+        for event in reversed(old_collection.events):
+            unbind_uid(event, uids.pop())
 
 
     def set(self, host, collection):
         super().set(host, collection)
-        setattr(host, self.target,
-                self._factory.make('DataList', host.gen_data()))
+        if self.target.get(host) is None:
+            self.target.set(host,
+                self._factory.make('DataList', self.generator(host)))
         return True
+
+
+    def gen_update(self, host):
+        def update(collection, *args):
+            '''
+            Step through the current data and match in place.
+            Requires target DataCollection to implement swap!
+            '''
+            target = getattr(host, self.target.name)
+            index = -1
+
+            for model in self.generator(host):
+                index += 1
+                try:
+                    current = target[index]
+                    if current is not model:
+                        i = target.index(model)
+                        target.swap(index, i)
+                        print('swapped', current.name, model.name)
+                    continue
+                except (IndexError, ValueError):
+                    pass
+
+                target.insert(index, model)
+                print('inserted', model.name)
+
+            for i in reversed(range(index + 1, len(target))):
+                del target[i]
+
+        return update
+
 
 
 
 
 class RecyclerView(DataView):
     '''
-    Recyles widgets that are not yielded by gen_data().
+    Recycles widgets that are not yielded by gen_data().
     RecyclerView maintains the .displayed collection, using the models
     generated by gen_data() to update. displayed does not need to be set
     explicitly and will be destructively modified.
     '''
-
-    displayed = CollectionProperty()
-    data = RecyclerProperty('displayed')
-
 
     def gen_data(self):
         '''Default implementation iterates over self.data entirely.'''
         return iter(self.data)
 
 
-    def update(self, collection):
-        '''Step through the current data and match in place.'''
-        displayed = self.displayed
-        index = -1
-
-        for model in self.gen_data():
-            index += 1
-            try:
-                current = displayed[index]
-                if current is not model:
-                    i = displayed.index(model)
-                    displayed.swap(index, i)
-                continue
-            except (IndexError, ValueError):
-                pass
-
-            displayed.insert(index, model)
-
-        for i in reversed(range(index + 1, len(displayed))):
-            del displayed[i]
+    displayed = CollectionProperty()
+    data = RecyclerProperty(displayed, gen_data)
 
 
 
@@ -723,14 +780,16 @@ class ActiveProperty(ObjectProperty):
 class Controller(Widget):
     '''
     Manages inputs and delegates commands.
-    The Controller calls command methods on Interactive widgets. Key binds and
-    command method names are set in {app}.ini. Up to four Interactive widgets
-    are held by the following ActiveProperties:
-    .root, .page, .region, .focus
-    Assigning an Interactive widget to any of these properties will cause it
-    to recieve commands. Command methods are of the format:
-    def on_{cmd}(self, controller):
-    Commands dont bubble and are searched in order; focus, region, page, root.
+    The Controller calls command methods on Interactive widgets. Key
+    binds and command method names are set in {app}.ini. Up to four
+    Interactive widgets are held by the following ActiveProperties:
+        .root, .page, .region, .focus
+
+    Assigning an Interactive widget to any of these properties will
+    cause it to recieve commands. Command methods are of the format:
+        def on_{cmd}(self, controller):
+
+    Command methods are searched for in order; focus, region, page, root.
     '''
 
     root = ActiveProperty()
