@@ -34,8 +34,10 @@ class DataCollection(DataModel):
     def to_json(self):  
   
 class DataList(DataCollection, UserList):  
+  ... standard list methods ...
   
 class DataDict(DataCollection, UserDict):  
+  ... standard dict methods ...
   
 class DataContext(DataDict):  
     name = StringProperty('default')  
@@ -52,25 +54,22 @@ class DataProperty(ObjectProperty):
 class SelectorProperty(DataProperty):  
 ```
 
-##### Collection Properties:  
----  
-```  
-class CollectionProperty(ObjectProperty):  
-  
-class RecyclerProperty(CollectionProperty):  
-```  
 ##### Data Widgets:  
 ---
 ```  
 class DataWidget(Widget):  
     def recycle(self):  
     def reinit(self, **kwargs):  
-
+  
+class CollectionProperty(ObjectProperty):  
+  
 class DataView(Layout):  
     data = CollectionProperty()  
     cls = AliasProperty()  
     def recycle(self):  
     def reinit(self, **kwargs):  
+
+class RecyclerProperty(CollectionProperty):  
   
 class RecyclerView(DataView):  
     def gen_data(self):  
