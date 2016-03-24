@@ -1,6 +1,6 @@
 #PKAS
 
-Personal Kivy Application System
+###Personal Kivy Application System
 
 
 Adds additional frameworking to kivy for use with PCs.
@@ -10,11 +10,11 @@ The module supports three primary features: Recycling of DataModels and
 DataWidgets, views for displaying DataCollections, and a control system
 which delegates to Interactive widgets.
 
-Contents:
+###Contents:
 
 
-Data:
-
+#####Data:
+'''
 class Factory(object):
     def make(self, cls, *args, **kwargs):
     def recycle(self, obj):
@@ -27,10 +27,10 @@ class DataModel(EventDispatcher):
     def reinit(self, _id=None, **kwargs):
     def load(self, context):
     def to_json(self):
+'''
 
-
-Collections:
-
+#####Collections:
+'''
 class DataCollection(DataModel):
     events = ['on_del','on_set','on_clear','on_insert','on_update','on_swap']
     def recycle(self):
@@ -46,22 +46,22 @@ class DataContext(DataDict):
     filename = StringProperty('')
     def save(self):
     def load(self):
+'''
 
-
-Model Properties:
-
+#####Model Properties:
+'''
 class DataProperty(ObjectProperty):
 class SelectorProperty(DataProperty):
+'''
 
-
-Collection Properties:
-
+#####Collection Properties:
+'''
 class CollectionProperty(ObjectProperty):
 class RecyclerProperty(CollectionProperty):
+'''
 
-
-Data Widgets:
-
+#####Data Widgets:
+'''
 class DataWidget(Widget):
     def recycle(self):
     def reinit(self, **kwargs):
@@ -76,10 +76,10 @@ class RecyclerView(DataView):
     def gen_data(self):
     displayed = CollectionProperty()
     data = RecyclerProperty(displayed, gen_data)
+'''
 
-
-Input related:
-
+#####Input related:
+'''
 class Interactive(EventDispatcher):
     is_active = BooleanProperty(False)
     def on_active(self, controller):
@@ -94,15 +94,15 @@ class Controller(Widget):
     focus = ActiveProperty()
 
 class PKApp(App):
+'''
 
-
-Utils:
-
+#####Utils:
+'''
 class Walker(EventDispatcher):
     index = AliasProperty()
     current = AliasProperty()
     data = ObjectProperty(None)
     def inc(self):
     def dec(self):
-
+'''
 
