@@ -17,36 +17,36 @@ which delegates to Interactive widgets.
 '''
 class Factory(object):
     def make(self, cls, *args, **kwargs):
-    def recycle(self, obj):
-    def set_stack_length(self, cls, length):
-    def specify(self, Ctor, length):
+        def recycle(self, obj):
+        def set_stack_length(self, cls, length):
+        def specify(self, Ctor, length):
 
 class DataModel(EventDispatcher):
     is_selected = BooleanProperty(False)
-    def recycle(self):
-    def reinit(self, _id=None, **kwargs):
-    def load(self, context):
-    def to_json(self):
-'''
+        def recycle(self):
+        def reinit(self, _id=None, **kwargs):
+        def load(self, context):
+        def to_json(self):
+        '''
 
 #####Collections:
 '''
 class DataCollection(DataModel):
     events = ['on_del','on_set','on_clear','on_insert','on_update','on_swap']
-    def recycle(self):
-    def reinit(self, data=None, *args, **kwargs):
-    def swap(self, a, b):
-    def load(self, context):
-    def to_json(self):
+        def recycle(self):
+        def reinit(self, data=None, *args, **kwargs):
+        def swap(self, a, b):
+        def load(self, context):
+        def to_json(self):
 
 class DataList(DataCollection, UserList):
 class DataDict(DataCollection, UserDict):
 class DataContext(DataDict):
     name = StringProperty('default')
-    filename = StringProperty('')
-    def save(self):
-    def load(self):
-'''
+        filename = StringProperty('')
+        def save(self):
+        def load(self):
+        '''
 
 #####Model Properties:
 '''
@@ -64,34 +64,34 @@ class RecyclerProperty(CollectionProperty):
 '''
 class DataWidget(Widget):
     def recycle(self):
-    def reinit(self, **kwargs):
+        def reinit(self, **kwargs):
 
 class DataView(Layout):
     data = CollectionProperty()
-    cls = AliasProperty()
-    def recycle(self):
-    def reinit(self, **kwargs):
+        cls = AliasProperty()
+        def recycle(self):
+        def reinit(self, **kwargs):
 
 class RecyclerView(DataView):
     def gen_data(self):
-    displayed = CollectionProperty()
-    data = RecyclerProperty(displayed, gen_data)
-'''
+        displayed = CollectionProperty()
+        data = RecyclerProperty(displayed, gen_data)
+        '''
 
 #####Input related:
 '''
 class Interactive(EventDispatcher):
     is_active = BooleanProperty(False)
-    def on_active(self, controller):
-    def on_inactive(self, controller):
+        def on_active(self, controller):
+        def on_inactive(self, controller):
 
 class ActiveProperty(ObjectProperty):
 
 class Controller(Widget):
     root = ActiveProperty()
-    page = ActiveProperty()
-    region = ActiveProperty()
-    focus = ActiveProperty()
+        page = ActiveProperty()
+        region = ActiveProperty()
+        focus = ActiveProperty()
 
 class PKApp(App):
 '''
@@ -100,9 +100,9 @@ class PKApp(App):
 '''
 class Walker(EventDispatcher):
     index = AliasProperty()
-    current = AliasProperty()
-    data = ObjectProperty(None)
-    def inc(self):
-    def dec(self):
-'''
+        current = AliasProperty()
+        data = ObjectProperty(None)
+        def inc(self):
+        def dec(self):
+        '''
 
