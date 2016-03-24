@@ -5,8 +5,6 @@ This module provides a data and ui abstraction layer on top of kivy.
 The module supports three primary features: Recycling of DataModels and
 DataWidgets, views for displaying DataCollections, and a control system
 which delegates to Interactive widgets.
-
-
 """
 
 from collections import defaultdict, UserDict, UserList
@@ -111,12 +109,6 @@ def specify(Ctor, stack_length=STACK_LEN):
 
 
 
-class DataProperty(ObjectProperty):
-    '''For DataModels to hold other DataModels. Used at file load.'''
-    pass
-
-
-
 @specify
 class DataModel(EventDispatcher):
     '''
@@ -208,6 +200,12 @@ class DataCollection(DataModel):
         self.data = data
         super().reinit(*args, **kwargs)
 
+    def swap(self, a, b):
+        pass
+    def load(self, context):
+        pass
+    def to_json(self):
+        pass
 
 
 
@@ -471,11 +469,30 @@ class DataContext(DataDict):
 
 
 
-class SelectorProperty(ObjectProperty):
+class DataProperty(ObjectProperty):
+
+    def __init__(self,
+                 default = factory.make('DataModel'),
+                 allownone = True,
+                 baseclass = DataModel,
+                 rebind = True,
+                 **kwargs):
+
+        super().__init__(default,
+                         allownone = allownone,
+                         baseclass = baseclass,
+                         rebind = rebind,
+                         **kwargs)
+
+
+
+
+class SelectorProperty(DataProperty):
     '''Manages selection / deselection of models by assignment.'''
 
     def set(self, obj, value):
         old_value = super().get(obj)
+        super().set(obj, value)
 
         if old_value is not None:
             old_value.is_selected = False
@@ -483,37 +500,8 @@ class SelectorProperty(ObjectProperty):
         if value is not None:
             value.is_selected = True
 
-        super().set(obj, value)
         return True
 
-
-
-
-
-class DataWidget(Widget):
-    '''
-    Widget that represents a DataModel.
-    Expects a cls.defaultmodel instance as a fallback for kv bindings.
-    Implements the methods reinit(**kwargs) and recycle() for recycling.
-    '''
-
-    model = ObjectProperty(None, rebind=True, allownone=True)
-    defaultmodel = factory.make('DataModel')
-
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-
-    def reinit(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        return self
-
-
-    def recycle(self):
-        self.model = self.defaultmodel
-        return self
 
 
 
@@ -557,6 +545,108 @@ class CollectionProperty(ObjectProperty):
 
         super().set(host, collection)
         return True
+
+
+
+
+class RecyclerProperty(CollectionProperty):
+    '''
+    Instead of binding to callbacks of event names on the host like the
+    CollectionProperty, the RecyclerProperty accepts a target
+    CollectionProperty to update with the contents yielded by generator.
+    '''
+
+    def __init__(self, target, generator, gen_update=None, **kwargs):
+        super().__init__(**kwargs)
+        self._factory = factory
+        self.generator = generator
+        self.target = target
+        if gen_update is not None:
+            self.gen_update = gen_update
+
+
+    def _bind(self, host, collection):
+        uids = getattr(host, self.uid_propname, [])
+        fbind = collection.fbind
+
+        # bind every event to update()
+        for event in collection.events:
+            uids.append(fbind(event, self.gen_update(host)))
+
+        setattr(host, self.uid_propname, uids)
+
+
+    def _unbind(self, host, old_collection):
+        uids = getattr(host, self.uid_propname)
+        unbind_uid = old_collection.unbind_uid
+
+        for event in reversed(old_collection.events):
+            unbind_uid(event, uids.pop())
+
+
+    def set(self, host, collection):
+        super().set(host, collection)
+        if self.target.get(host) is None:
+            self.target.set(host,
+                self._factory.make('DataList', self.generator(host)))
+        return True
+
+
+    def gen_update(self, host):
+        def update(collection, *args):
+            '''
+            Step through the current data and match in place.
+            Requires target DataCollection to implement swap!
+            '''
+            target = getattr(host, self.target.name)
+            index = -1
+
+            for model in self.generator(host):
+                index += 1
+                try:
+                    current = target[index]
+                    if current is not model:
+                        i = target.index(model)
+                        target.swap(index, i)
+                        print('swapped', current.name, model.name)
+                    continue
+                except (IndexError, ValueError):
+                    pass
+
+                target.insert(index, model)
+                print('inserted', model.name)
+
+            for i in reversed(range(index + 1, len(target))):
+                del target[i]
+
+        return update
+
+
+
+
+class DataWidget(Widget):
+    '''
+    Widget that represents a DataModel.
+    Expects a cls.defaultmodel instance as a fallback for kv bindings.
+    Implements the methods reinit(**kwargs) and recycle() for recycling.
+    '''
+
+    model = DataProperty(factory.make('DataModel'))
+
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+
+    def recycle(self):
+        self.model = self.property('model').defaultvalue
+        return self
+
+
+    def reinit(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
 
 
 
@@ -641,81 +731,15 @@ class DataView(Layout):
                 add_widget(make(cls, model=model))
 
 
+    def recycle(self):
+        self.data.clear()
+        return self
 
 
-class RecyclerProperty(CollectionProperty):
-    '''
-    Instead of binding to callbacks of event names on the host like the
-    CollectionProperty, the RecyclerProperty accepts a target
-    CollectionProperty to update with the contents yielded by generator.
-    '''
-
-    def __init__(self, target, generator, gen_update=None, **kwargs):
-        super().__init__(**kwargs)
-        self._factory = factory
-        self.generator = generator
-        self.target = target
-        if gen_update is not None:
-            self.gen_update = gen_update
-
-
-    def _bind(self, host, collection):
-        uids = getattr(host, self.uid_propname, [])
-        fbind = collection.fbind
-
-        # bind every event to update()
-        for event in collection.events:
-            uids.append(fbind(event, self.gen_update(host)))
-
-        setattr(host, self.uid_propname, uids)
-
-
-    def _unbind(self, host, old_collection):
-        uids = getattr(host, self.uid_propname)
-        unbind_uid = old_collection.unbind_uid
-
-        for event in reversed(old_collection.events):
-            unbind_uid(event, uids.pop())
-
-
-    def set(self, host, collection):
-        super().set(host, collection)
-        if self.target.get(host) is None:
-            self.target.set(host,
-                self._factory.make('DataList', self.generator(host)))
-        return True
-
-
-    def gen_update(self, host):
-        def update(collection, *args):
-            '''
-            Step through the current data and match in place.
-            Requires target DataCollection to implement swap!
-            '''
-            target = getattr(host, self.target.name)
-            index = -1
-
-            for model in self.generator(host):
-                index += 1
-                try:
-                    current = target[index]
-                    if current is not model:
-                        i = target.index(model)
-                        target.swap(index, i)
-                        print('swapped', current.name, model.name)
-                    continue
-                except (IndexError, ValueError):
-                    pass
-
-                target.insert(index, model)
-                print('inserted', model.name)
-
-            for i in reversed(range(index + 1, len(target))):
-                del target[i]
-
-        return update
-
-
+    def reinit(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        return self
 
 
 
@@ -774,6 +798,8 @@ class ActiveProperty(ObjectProperty):
 
         super().set(obj, value)
         return True
+
+
 
 
 
