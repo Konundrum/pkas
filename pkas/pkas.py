@@ -5,6 +5,33 @@ This module provides a data and ui abstraction layer on top of kivy.
 The module supports three primary features: Recycling of DataModels and
 DataWidgets, views for displaying DataCollections, and a control system
 which delegates to Interactive widgets.
+
+class Factory(object):
+factory = Factory() # Singleton
+def specify(Ctor, stack_length=STACK_LEN):
+
+class DataModel(EventDispatcher):
+class DataCollection(DataModel):
+class DataList(DataCollection, UserList):
+class DataDict(DataCollection, UserDict):
+class DataContext(DataDict):
+
+class DataProperty(ObjectProperty):
+class SelectorProperty(DataProperty):
+class DataWidget(Widget):
+
+class CollectionProperty(ObjectProperty):
+class DataView(Layout):
+class RecyclerProperty(CollectionProperty):
+class RecyclerView(DataView):
+
+class Interactive(EventDispatcher):
+class ActiveProperty(ObjectProperty):
+class Controller(Widget):
+class PKApp(App):
+
+class Walker(EventDispatcher):
+def load_kv(*args):
 """
 
 from collections import defaultdict, UserDict, UserList
@@ -914,6 +941,7 @@ class Walker(EventDispatcher):
     def _get_current(self):
         _index = self._index
         try: return self.data[_index]
+        except TypeError: return None
         except IndexError: pass
 
         _max = len(self.data) - 1
@@ -930,7 +958,7 @@ class Walker(EventDispatcher):
 
     index = AliasProperty(_get_index, _set_index)
     current = AliasProperty(_get_current, _set_current, bind=['index','data'])
-    data = ObjectProperty(None)
+    data = ObjectProperty(None, allownone=True)
 
 
     def __init__(self, index=0, **kwargs):
