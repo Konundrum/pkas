@@ -35,34 +35,74 @@ def load_kv(*args):
 ```  
   
   
-Objects are recycled by implementing methods:  
+The factory is a singleton used to make and recycle objects. Objects can 
+be specified for production by decorating with @specify
+Objects are recyclable by implementing methods recycle() and reinit(**kw)  
 ```  
-def recycle(self):  
-def reinit(self, **kwargs):  
+factory = Factory() # Singleton  
+  
+@specify  
+class MyDataModel(DataModel):  
+  def recycle(self):  
+  def reinit(self, **kwargs):  
 ```  
   
 DataCollections are DataModels with an event list that defines a protocol
-used to keep the DataCollection in sync with a DataView.  
+used to keep the DataCollection in sync with a DataView:  
 ```  
 class DataCollection(DataModel):  
-  events = ['on_evt', ...]  
+    events = ['on_evt', ...]  
 ```  
 
-DataViews automatically bind to all events assigned to a CollectionProperty  
+CollectionProperies automatically bind all events to their host:  
 ```  
 class DataView(Layout):  
-  data = CollectionProperty()  
+    data = CollectionProperty()  
 ```  
-    
   
-Active Properties call active / inactive methods on InteractiveWidgets:
-```
-def on_active(self, controller):
-def on_inactive(self, controller):
-```
+RecyclerProperties keep a target CollectionProperty in sync with the 
+objects yielded by a generator function:  
+```  
+class RecyclerView(DataView):  
+    def gen_data(self):  
+    displayed = CollectionProperty()  
+    data = RecyclerProperty(displayed, gen_data)  
+  
+```  
 
-Selector Properties select / deleselect models:  
+Active Properties call active / inactive methods on InteractiveWidgets:
 ```  
-is_selected = BooleanProperty(False)  
+def on_active(self, controller):  
+def on_inactive(self, controller):  
 ```  
+  
+The Controller maintains 4 such properties, to which it delegates 
+commands defined in {app}.ini  
+```  
+class Controller(Widget):  
+    root = ActiveProperty()  
+    page = ActiveProperty()  
+    region = ActiveProperty()  
+    focus = ActiveProperty()  
+  
+
+in {app}.ini:
+
+[keybinds]
+right = "right"
+down = ["s", "down"]
+close_tab = "ctrl w"  
+
+in view.py:  
+  
+class MyView(RecyclerView, BoxLayout):  
+  
+    def on_right(self, controller):  
+        ...  
+    def on_down(self, controller):  
+        ...  
+    def on_close_tab(self, controller):  
+        ...  
+...  
+
   

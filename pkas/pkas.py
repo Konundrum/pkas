@@ -126,7 +126,7 @@ class Factory(object):
 
 
 
-factory = Factory()     # Singleton
+factory = Factory() # Singleton
 
 def specify(Ctor, stack_length=STACK_LEN):
     '''Decorator to specify a class for production by the factory.'''
@@ -917,9 +917,13 @@ class PKApp(App):
 
     def on_start(self):
         binds = {}
-        for cmd, key_list in self.config.items('keybinds'):
-            for key in json.loads(key_list):
-                binds[key] = 'on_{}'.format(cmd)
+        for cmd, data in self.config.items('keybinds'):
+            data = json.loads(data)
+            if type(data) is str:
+                binds[data] = 'on_{}'.format(cmd)
+            else:
+                for key in data:
+                    binds[key] = 'on_{}'.format(cmd)
 
         self.controller = Controller(binds=binds, root=self.root)
 
