@@ -47,8 +47,14 @@ from kivy.uix.layout import Layout
 from kivy.uix.widget import Widget
 from kivy.core.window import Window
 
-STACK_LEN = 10
 
+STACK_LEN = 10
+LOG = True
+
+
+def log(*args):
+    if LOG:
+        print(*args)
 
 
 
@@ -87,7 +93,7 @@ class Factory(object):
 
         try:
             obj = self._recycled[cls].pop().reinit(*args, **kwargs)
-            print('reused:', obj)
+            log('Factory:\tReused:', obj)
             return obj
         except IndexError:
             return Ctor(*args, **kwargs)
@@ -106,7 +112,7 @@ class Factory(object):
         if len(obj_stack) < self._stack_lengths[cls]:
             obj_stack.append(obj.recycle())
 
-        print('Recycled:', obj)
+        log('Factory:\tRecycled:', obj)
 
 
     def set_stack_length(self, cls, length):
@@ -148,7 +154,7 @@ class DataModel(EventDispatcher):
 
     def recycle(self):
         self._id = None
-        for prop in self.properties():
+        for prop in self.properties().values():
             prop.set(self, prop.defaultvalue)
         return self
 
@@ -161,7 +167,7 @@ class DataModel(EventDispatcher):
 
 
     def load(self, context):
-        for prop in self.properties():
+        for prop in self.properties().values():
             if isinstance(prop, DataProperty):
                 prop.get(self).load(context)
 
@@ -169,21 +175,24 @@ class DataModel(EventDispatcher):
     def to_json(self):
         output = []
         entries = []
-        output.append('{')
+        output.append('{\n')
         append = entries.append
-        append('  "class" : "{}",'.format(self.__class__.__name__))
-        append('  "_id" : "{}"'.format(self._id))
-        for prop in self.properties():
+        append('  "__class__" : "{}"'.format(self.__class__.__name__))
+        # append('  "_id" : "{}"'.format(self._id))
+        for prop in self.properties().values():
             value = prop.get(self)
             if isinstance(value, DataCollection):
                 value = value.to_json()
+            elif isinstance(value, DataModel):
+                value = value._id
             append('  "{}" : {}'.format(prop.name, value))
         output.append(',\n'.join(entries))
-        output.append('}')
+        output.append('  }')
         return ''.join(output)
 
 
     def __init__(self, _id=None, *args, **kwargs):
+        log('Inst DataModel:', self.__class__.__name__, args, kwargs)
         self._id = _id
         super().__init__(*args, **kwargs)
 
@@ -193,6 +202,8 @@ class DataModel(EventDispatcher):
     def __ne__(self, other):
         return self is not other
 
+    def __repr__(self):
+        return '_id:{}'.format(self._id)
 
 
 
@@ -215,6 +226,7 @@ class DataCollection(DataModel):
     del locals()['fallback']
 
     def __init__(self, *args, **kwargs):
+        log('Inst DataCollection', args, kwargs)
         for event in self.events:
             self.register_event_type(event)
         super().__init__(*args, **kwargs)
@@ -305,9 +317,9 @@ class DataList(DataCollection, UserList):
         output = []
         entries = []
         output.append('{')
-        entries.append('"class":"{}"'.format(self.__class__.__name__))
-        try: entries.append('"_id":"{}"'.format(self._id))
-        except AttributeError: pass
+        entries.append('"__class__":"{}"'.format(self.__class__.__name__))
+        # try: entries.append('"_id":"{}"'.format(self._id))
+        # except AttributeError: pass
         ids = []
         for item in self.data:
             ids.append(item._id)
@@ -326,8 +338,9 @@ class DataDict(DataCollection, UserDict):
     Supports DataCollection event interface and file loading.
     '''
 
-    def __init__(self, data=None, *args, **kwargs):
-        super().__init__(data, *args, **kwargs)
+    def __init__(self, data={}, *args, **kwargs):
+        log('Inst DataDict', data, kwargs)
+        super().__init__(*args, **kwargs, **data)
         self.keys = []
         append = self.keys.append
         for key in self.data.keys():
@@ -354,6 +367,10 @@ class DataDict(DataCollection, UserDict):
 
     def __iter__(self):
         return iter(self.keys)
+
+    def __len__(self):
+        return len(self.keys)
+
 
     def clear(self):
         self.keys.clear()
@@ -417,9 +434,9 @@ class DataDict(DataCollection, UserDict):
         output = []
         entries = []
         output.append('{')
-        entries.append('"class":"{}"'.format(self.__class__.__name__))
-        try: entries.append('"_id":"{}"'.format(self._id))
-        except AttributeError: pass
+        entries.append('"__class__":"{}"'.format(self.__class__.__name__))
+        # try: entries.append('"_id":"{}"'.format(self._id))
+        # except AttributeError: pass
         data = []
         for key, value in self:
             data.append('"{}":"{}"'.format(key, value._id))
@@ -445,8 +462,10 @@ class FileContext(DataDict):
     filename = StringProperty('')
 
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, mode='json', **kwargs):
+        log('Inst FileContext', kwargs)
         super().__init__(*args, **kwargs)
+        self.mode = mode
         self.register_event_type('on_save')
         self.register_event_type('on_load')
 
@@ -472,21 +491,29 @@ class FileContext(DataDict):
 
 
     def save(self):
-        '''Iterate over keys, items.to_json() and write to self.filename'''
+        '''Iterate over keys, items.to_{mode}() and write to self.filename'''
+        log('Saving:', self)
+
         with open(self.filename, 'w') as f:
-            f.write('{\n')
-            f.write('"name" : "{}",\n'.format(self.name))
-            for _id, model in self:
-                f.write('"{}" : {}'.format(_id, model.to_json()))
-            f.write('}\n')
+            f.write('{}\n'.format(self.mode))
+            for output in getattr(self, 'to_{}'.format(self.mode))():
+                f.write(output)
+
+
+    def to_json(self):
+        yield ('{\n')
+        for _id, model in self.items():
+            yield ('"{}" : {},\n'.format(_id, getattr(model, 'to_json')()))
+        yield ('"name" : "{}"\n'.format(self.name))
+        yield ('}\n')
 
 
     def load(self):
         '''Parse filename as json, update self and call load() on items.'''
         make = self.factory.make
         with open(self.filename, 'r') as f:
-            data = json.load(file = f, object_hook = lambda dct:
-                    make(dct.pop('class'), dct) if 'class' in dct else dct )
+            data = json.load(file = f, object_hook = lambda d:
+                make(d.pop('__class__'), **d) if '__class__' in d else d)
 
         self.name = data.pop('name')
         self.update(data)
@@ -757,13 +784,13 @@ class RecyclerProperty(CollectionProperty):
                     if current is not model:
                         i = target.index(model)
                         target.swap(index, i)
-                        print('swapped', current.name, model.name)
+                        log('update: swapped', current.name, model.name)
                     continue
                 except (IndexError, ValueError):
                     pass
 
                 target.insert(index, model)
-                print('inserted', model.name)
+                log('update: inserted', model.name)
 
             for i in reversed(range(index + 1, len(target))):
                 del target[i]
@@ -853,6 +880,8 @@ class Controller(Widget):
     page = ActiveProperty()
     region = ActiveProperty()
     focus = ActiveProperty()
+
+    file = ObjectProperty(None, allownone=True)
 
 
     def __init__(self, binds=None, **kwargs):

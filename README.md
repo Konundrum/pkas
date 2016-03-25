@@ -1,7 +1,11 @@
 # PKAS  
 ### Personal Kivy Application System  
 
-Adds additional frameworking to kivy for use with PCs. This module provides a data and ui abstraction layer on top of kivy. The module supports three primary features: Recycling of DataModels and DataWidgets, views for displaying DataCollections, and a control system which delegates to Interactive Widgets.  
+Adds additional frameworking to kivy for use with PCs. This module provides 
+a data and ui abstraction layer on top of kivy. The module supports recycling 
+of DataModels and DataWidgets, file saving and loading, views for displaying 
+DataCollections, and a control system which delegates to commands mapped by 
+keybinds to Interactive Widgets.  
   
 ### Contents:  
 ---
@@ -44,7 +48,9 @@ factory = Factory() # Singleton
 @specify  
 class MyDataModel(DataModel):  
   def recycle(self):  
+    ...  
   def reinit(self, **kwargs):  
+    ...  
 ```  
   
 DataCollections are DataModels with an event list that defines a protocol
@@ -65,6 +71,7 @@ objects yielded by a generator function:
 ```  
 class RecyclerView(DataView):  
     def gen_data(self):  
+      ...  
     displayed = CollectionProperty()  
     data = RecyclerProperty(displayed, gen_data)  
   
@@ -73,8 +80,10 @@ class RecyclerView(DataView):
 Active Properties call active / inactive methods on InteractiveWidgets:
 ```  
 class ActiveWidget(Interactive, Widget):  
-  def on_active(self, controller):  
-  def on_inactive(self, controller):  
+    def on_active(self, controller):  
+      ...  
+    def on_inactive(self, controller):  
+      ...  
 ```  
   
 The Controller maintains 4 such properties, to which it delegates 
@@ -97,14 +106,12 @@ close_tab = "ctrl w"
 in view.py:  
   
 class MyView(RecyclerView, BoxLayout):  
-  
     def on_right(self, controller):  
-        ...  
+      ...  
     def on_down(self, controller):  
-        ...  
+      ...  
     def on_close_tab(self, controller):  
-        ...  
-
+      ...  
 
 
 controller.focus = myview_instance
