@@ -4,7 +4,7 @@ Personal Kivy Application System
 This module provides a data and ui abstraction layer on top of kivy.
 The module supports three primary features: Recycling of DataModels and
 DataWidgets, views for displaying DataCollections, and a control system
-which delegates to Interactive widgets.
+which delegates to Interactive Widgets.
 
 class Factory(object):
 factory = Factory() # Singleton
@@ -14,7 +14,7 @@ class DataModel(EventDispatcher):
 class DataCollection(DataModel):
 class DataList(DataCollection, UserList):
 class DataDict(DataCollection, UserDict):
-class DataContext(DataDict):
+class FileContext(DataDict):
 
 class DataProperty(ObjectProperty):
 class SelectorProperty(DataProperty):
@@ -432,7 +432,7 @@ class DataDict(DataCollection, UserDict):
 
 
 @specify
-class DataContext(DataDict):
+class FileContext(DataDict):
     '''
     DataDict for saving to and loading from files.
 

@@ -1,7 +1,7 @@
 # PKAS  
 ### Personal Kivy Application System  
 
-Adds additional frameworking to kivy for use with PCs. This module provides a data and ui abstraction layer on top of kivy. The module supports three primary features: Recycling of DataModels and DataWidgets, views for displaying DataCollections, and a control system which delegates to Interactive widgets.  
+Adds additional frameworking to kivy for use with PCs. This module provides a data and ui abstraction layer on top of kivy. The module supports three primary features: Recycling of DataModels and DataWidgets, views for displaying DataCollections, and a control system which delegates to Interactive Widgets.  
   
 ### Contents:  
 ---
@@ -14,7 +14,7 @@ class DataModel(EventDispatcher):
 class DataCollection(DataModel):  
 class DataList(DataCollection, UserList):  
 class DataDict(DataCollection, UserDict):  
-class DataContext(DataDict):  
+class FileContext(DataDict):  
   
 class DataProperty(ObjectProperty):  
 class SelectorProperty(DataProperty):  
@@ -54,7 +54,7 @@ class DataCollection(DataModel):
     events = ['on_evt', ...]  
 ```  
 
-CollectionProperies automatically bind all events to their host:  
+CollectionProperties automatically bind all events to their host:  
 ```  
 class DataView(Layout):  
     data = CollectionProperty()  
@@ -72,8 +72,9 @@ class RecyclerView(DataView):
 
 Active Properties call active / inactive methods on InteractiveWidgets:
 ```  
-def on_active(self, controller):  
-def on_inactive(self, controller):  
+class ActiveWidget(Interactive, Widget):  
+  def on_active(self, controller):  
+  def on_inactive(self, controller):  
 ```  
   
 The Controller maintains 4 such properties, to which it delegates 
@@ -103,6 +104,11 @@ class MyView(RecyclerView, BoxLayout):
         ...  
     def on_close_tab(self, controller):  
         ...  
-...  
 
+
+
+controller.focus = myview_instance
+
+
+```
   
