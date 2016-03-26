@@ -1,4 +1,4 @@
-# PKAS  
+## PKAS  
 ### Personal Kivy Application System  
 
 Adds additional frameworking to kivy for use with PCs. This module provides 
@@ -7,7 +7,7 @@ of DataModels and DataWidgets, file saving and loading, views for displaying
 DataCollections, and a control system which delegates to commands mapped by 
 keybinds to Interactive Widgets.  
   
-### Contents:  
+#### Contents:  
 ---
 ```  
 class Factory(object):  
@@ -87,20 +87,21 @@ class ActiveWidget(Interactive, Widget):
 ```  
   
 The Controller maintains 4 such properties, to which it delegates 
-commands defined in {app}.ini  
+commands defined in {app}.ini, in addition to a file property.  
 ```  
 class Controller(Widget):  
+    file = ObjectProperty()  
     root = ActiveProperty()  
     page = ActiveProperty()  
     region = ActiveProperty()  
     focus = ActiveProperty()  
   
-
-in {app}.ini:
-
-[keybinds]
-right = "right"
-down = ["s", "down"]
+  
+in {app}.ini:  
+  
+[keybinds]  
+right = "right"  
+down = ["s", "down"]  
 close_tab = "ctrl w"  
 
 in view.py:  
@@ -112,10 +113,10 @@ class MyView(RecyclerView, BoxLayout):
       ...  
     def on_close_tab(self, controller):  
       ...  
-
-
-controller.focus = myview_instance
-
-
+  
+  
+controller.focus = myview_instance  
+  
+  
 ```
   
