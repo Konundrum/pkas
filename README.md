@@ -28,6 +28,7 @@ class CollectionProperty(ObjectProperty):
 class DataView(Layout):  
 class RecyclerProperty(CollectionProperty):  
 class RecyclerView(DataView):  
+class ListView(DataView, BoxLayout):  
   
 class Interactive(EventDispatcher):  
 class ActiveProperty(ObjectProperty):  

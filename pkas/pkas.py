@@ -24,6 +24,7 @@ class CollectionProperty(ObjectProperty):
 class DataView(Layout):
 class RecyclerProperty(CollectionProperty):
 class RecyclerView(DataView):
+class ListView(DataView, BoxLayout):
 
 class Interactive(EventDispatcher):
 class ActiveProperty(ObjectProperty):
@@ -54,24 +55,19 @@ from kivy.core.window import Window
 
 STACK_LEN = 10
 LOG = True
-
-
 def log(*args):
-    if LOG:
-        print(*args)
+    if LOG: print(*args)
 
 
 
 class Factory(object):
     '''
     The Factory maintains an object pool of DataModels and DataWidgets.
-
     Items to be recycled by the factory must implement both reinit(kwargs)
     and recycle(), which are used by the Factory to setup and teardown
     objects. The Factory maintains a stack for each class, the lengths
     of which may be set by set_stack_length.
     '''
-
     _inst = None  #Singleton reference
 
     def __new__(cls):
@@ -83,25 +79,22 @@ class Factory(object):
         return cls._inst
 
 
-
     def make(self, cls, *args, **kwargs):
         '''
         Initializes objects from their respective class stacks, or if
         not available creates new ones with (args, kwargs). In order to
         to be recyclable objects must implement reinit(...).
         '''
-        try:
-            Ctor = self._ctors[cls]
+        try: Ctor = self._ctors[cls]
         except KeyError:
             raise Exception('factory.make:', cls, 'not specified.')
 
         try:
             obj = self._recycled[cls].pop().reinit(*args, **kwargs)
-            log('Factory:\tReused:', obj)
+            log('Factory:\tReused:', obj, kwargs)
             return obj
         except IndexError:
             return Ctor(*args, **kwargs)
-
 
 
     def recycle(self, obj):
@@ -156,16 +149,12 @@ class DataModel(EventDispatcher):
     is_selected = BooleanProperty(False)
     save = []
 
+    def __eq__(self, other): return self is other
+    def __ne__(self, other): return self is not other
 
     def __init__(self, _id=None, *args, **kwargs):
         self._id = _id
         super().__init__(*args, **kwargs)
-
-    def __eq__(self, other):
-        return self is other
-
-    def __ne__(self, other):
-        return self is not other
 
 
     def recycle(self):
@@ -196,10 +185,8 @@ class DataModel(EventDispatcher):
         append('  "__class__" : "{}"'.format(self.__class__.__name__))
         for prop_name in self.save:
             value = getattr(self, prop_name)
-            if isinstance(value, DataCollection):
-                value = value.to_json()
-            elif isinstance(value, DataModel):
-                value = value._id
+            if isinstance(value, DataCollection): value = value.to_json()
+            elif isinstance(value, DataModel): value = value._id
             append('  "{}" : {}'.format(prop.name, value))
         output.append(',\n'.join(entries))
         output.append('  }')
@@ -242,13 +229,9 @@ class DataCollection(DataModel):
         self.data = data
         super().reinit(*args, **kwargs)
 
-    def swap(self, a, b):
-        pass
-    def load(self, context):
-        pass
-    def to_json(self):
-        pass
-
+    def swap(self, a, b): pass
+    def load(self, context): pass
+    def to_json(self): pass
 
 
 
@@ -277,7 +260,6 @@ class DataList(DataCollection, MutableSequence):
         return other.data if isinstance(other, DataCollection) else other
     def __contains__(self, item): return item in self.data
     def __len__(self): return len(self.data)
-
     def __getitem__(self, item): return self.data[item]
 
     def __setitem__(self, item, value):
@@ -314,6 +296,7 @@ class DataList(DataCollection, MutableSequence):
 
     def __mul__(self, n):
         return self.__class__(self.data*n)
+
     __rmul__ = __mul__
 
     def __imul__(self, n):
@@ -362,7 +345,6 @@ class DataList(DataCollection, MutableSequence):
         d[a], d[b] = d[b], d[a]
         self.dispatch('on_swap', a, b)
 
-
     def load(self, context):
         '''If any data items are still _ids, load the models from context.'''
         data = self.data
@@ -370,21 +352,15 @@ class DataList(DataCollection, MutableSequence):
             if type(item) is str:
                 super()[index] = context[item]
 
-
     def to_json(self):
-        output = []
-        entries = []
-        output.append('{')
-        entries.append('"__class__":"{}"'.format(self.__class__.__name__))
-        # try: entries.append('"_id":"{}"'.format(self._id))
-        # except AttributeError: pass
-        ids = []
-        for item in self.data:
-            ids.append(item._id)
-        entries.append('"data":"[{}]"'.format(','.join(ids)))
-        output.append(','.join(entries))
-        output.append('}')
-        return ''.join(output)
+        ent = []
+        out = []
+        out.append('{')
+        ent.append('"__class__":"{}"'.format(self.__class__.__name__))
+        ent.append('"data":"[{}]"'.format(','.join(i._id for i in self.data)))
+        out.append(','.join(ent))
+        out.append('}')
+        return ''.join(out)
 
 
 
@@ -407,8 +383,7 @@ class DataDeque(DataList):
         self.data.popleft()
         self.dispatch('on_del', 0)
 
-    def on_appendleft(self, *args):
-        print('appendleft args', args)
+    def on_appendleft(self, *args): pass
 
 
 
@@ -420,7 +395,6 @@ class DataDict(DataCollection, MutableMapping):
     '''
 
     def __init__(self, data=None, **kwargs):
-        # split apart prop kwargs and dict kwargs
         if data is not None:
             if not isinstance(data, MutableMapping):
                 raise TypeError('DataDict passed non dict.', data)
@@ -428,15 +402,13 @@ class DataDict(DataCollection, MutableMapping):
             data = {}
             props = self.properties()
             for kw in kwargs:
-                if kw not in props:
-                    data[kw] = kwargs.pop(kw)
+                if kw not in props: data[kw] = kwargs.pop(kw)
 
         super().__init__(**kwargs)
         self.data = data
         self.keys = []
         append = self.keys.append
-        for key in kwargs.keys():
-            append(key)
+        for key in kwargs.keys(): append(key)
 
 
     def __getitem__(self, key): return self.data[key]
@@ -516,8 +488,6 @@ class DataDict(DataCollection, MutableMapping):
         entries = []
         output.append('{')
         entries.append('"__class__":"{}"'.format(self.__class__.__name__))
-        # try: entries.append('"_id":"{}"'.format(self._id))
-        # except AttributeError: pass
         data = []
         for key, value in self:
             data.append('"{}":"{}"'.format(key, value._id))
@@ -525,9 +495,6 @@ class DataDict(DataCollection, MutableMapping):
         output.append(','.join(entries))
         output.append('}')
         return ''.join(output)
-
-
-
 
 
 
@@ -550,16 +517,13 @@ class FileContext(DataDict):
         super().__init__(**kwargs)
         self.mode = mode
 
-
     # def __repr__(self):
     #     return 'Context {}: {}'.format(self.name, self.data)
-
 
     def _get_id(self):
         for i in range(3):
             _id = str(random())
-            try:
-                self[_id]
+            try: self[_id]
             except KeyError:
                 return _id
 
@@ -599,7 +563,6 @@ class FileContext(DataDict):
 
 
 
-
 class DataProperty(ObjectProperty):
 
     def __init__(self,
@@ -617,22 +580,15 @@ class DataProperty(ObjectProperty):
 
 
 
-
 class SelectorProperty(DataProperty):
     '''Manages selection / deselection of models by assignment.'''
 
-    def set(self, obj, value):
+    def set(self, obj, new_value):
         old_value = super().get(obj)
-        super().set(obj, value)
-
-        if old_value is not None:
-            old_value.is_selected = False
-
-        if value is not None:
-            value.is_selected = True
-
+        super().set(obj, new_value)
+        if old_value is not None: old_value.is_selected = False
+        if new_value is not None: new_value.is_selected = True
         return True
-
 
 
 
@@ -645,21 +601,17 @@ class DataWidget(Widget):
 
     model = DataProperty(factory.make('DataModel'))
 
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
 
     def recycle(self):
         self.model = self.property('model').defaultvalue
         return self
 
-
     def reinit(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
         return self
-
 
 
 
@@ -674,21 +626,20 @@ class CollectionProperty(ObjectProperty):
 
 
     def _bind(self, host, collection):
-        uid_propname = self.uid_propname = '_{}_uids'.format(self.name)
+        uid_propname = '_{}_uids'.format(self.name)
         uids = getattr(host, uid_propname, [])
         fbind = collection.fbind
 
         for event in collection.events:
-            callback = getattr(host, event, False)
-            if callback:
-                uids.append(fbind(event, getattr(host, event)))
+            callback = getattr(host, event, None)
+            if callback is not None: uids.append(fbind(event, callback))
         setattr(host, uid_propname, uids)
 
-        print('Bound collection', host, uid_propname, collection)
+        log('Bound collection', host, uid_propname, collection)
 
 
     def _unbind(self, host, old_collection):
-        uids = getattr(host, self.uid_propname)
+        uids = getattr(host, '_{}_uids'.format(self.name))
         unbind_uid = old_collection.unbind_uid
 
         for event in reversed(old_collection.events):
@@ -706,7 +657,6 @@ class CollectionProperty(ObjectProperty):
             self._bind(host, collection)
 
         super().set(host, collection)
-        # host.on_update(collection)
         return True
 
 
@@ -716,10 +666,10 @@ class CollectionProperty(ObjectProperty):
 class DataView(Layout):
     '''Layout that keeps children in sync with data.'''
 
-    data = CollectionProperty()
     cls = AliasProperty(lambda s: getattr(s, '_cls'),
                         lambda s,v: setattr(s, '_cls', v.__name__),
                         bind=[])
+    data = CollectionProperty()
 
 
     def __init__(self, **kwargs):
@@ -728,10 +678,8 @@ class DataView(Layout):
 
 
     def __del__(self):
-        try:
-            self._unbind_data()
-        except IndexError:
-            pass
+        try: self._unbind_data()
+        except IndexError: pass
 
 
     def get_child_index(self, child):
@@ -743,6 +691,7 @@ class DataView(Layout):
     def on_del(self, data, i):
         i = len(self.children) - 1 - i
         widget = self.children[i]
+        log('deleting', widget)
         self.remove_widget(widget)
         self._factory.recycle(widget)
 
@@ -792,6 +741,10 @@ class DataView(Layout):
             for model in data:
                 add_widget(make(cls, model=model))
 
+    def update(self):
+        self.on_update(self.data)
+        self.walker.update()
+
 
     def recycle(self):
         self.data.clear()
@@ -802,6 +755,7 @@ class DataView(Layout):
         for k, v in kwargs.items():
             setattr(self, k, v)
         return self
+
 
 
 
@@ -823,7 +777,7 @@ class RecyclerProperty(CollectionProperty):
 
     def _bind(self, host, collection):
         self.generator = getattr(host, 'gen_{}'.format(self.target_name), None)
-        uid_propname = self.uid_propname = '_{}_uids'.format(self.name)
+        uid_propname = '_{}_uids'.format(self.name)
         uids = getattr(host, uid_propname, [])
         fbind = collection.fbind
 
@@ -837,12 +791,12 @@ class RecyclerProperty(CollectionProperty):
         for event in collection.events:
             uids.append(fbind(event, update))
 
-        setattr(host, self.uid_propname, uids)
-        print('Bound collection', host, uid_propname, collection)
+        setattr(host, uid_propname, uids)
+        log('Bound collection', host, uid_propname, collection)
 
 
     def _unbind(self, host, old_collection):
-        uids = getattr(host, self.uid_propname)
+        uids = getattr(host, '_{}_uids'.format(self.name))
         unbind_uid = old_collection.unbind_uid
 
         for event in reversed(old_collection.events):
@@ -874,8 +828,7 @@ class RecyclerProperty(CollectionProperty):
                         target.swap(index, i)
                         log('update: swapped', current.name, model.name)
                     continue
-                except (IndexError, ValueError):
-                    pass
+                except (IndexError, ValueError): pass
 
                 target.insert(index, model)
                 log('update: inserted', model.name)
@@ -909,11 +862,26 @@ class RecyclerView(DataView):
 
 
 class ListView(DataView, BoxLayout):
+    '''
+    Works similar to the recycle view, but overwriting the update_displayed
+    function to make use of a current index and a num_displayed property to
+    trim the data list. In addition this class uses a DataDeque for the
+    displayed DataCollection to save some insertion time and comes with
+    a walker to walk over the displayed items.
+    '''
 
     displayed = CollectionProperty()
     data = RecyclerProperty('displayed')
-    index = NumericProperty(0)
-    num_displayed = NumericProperty(4)
+    displayed_index = NumericProperty(0)
+    num_displayed = NumericProperty(10)
+    index = AliasProperty(lambda s: s.displayed_index + s.walker.index)
+
+
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.displayed = factory.make('DataDeque')
+        self.walker = Walker(data=self.displayed)
 
 
     def update_displayed(self, *args):
@@ -921,36 +889,30 @@ class ListView(DataView, BoxLayout):
         displayed = self.displayed
         index = 0
 
-        try: model = data[self.index]
-        except IndexError: displayed.clear(); return
+        try: model = data[self.displayed_index]
+        except: displayed.clear(); return
         try: current = displayed[index]
-        except IndexError: displayed.append(model)
+        except: displayed.append(model)
         else:
             if current is not model:
-                try:
-                    i = displayed.index(model)
-                    displayed.swap(index, i)
-                except ValueError:
-                    displayed.appendleft(model)
+                try: i = displayed.index(model)
+                except ValueError: displayed.appendleft(model)
+                else: displayed.swap(index, i)
 
-        index = 1
         for index in range(1, self.num_displayed):
-            print('trying index', index)
-            try: model = data[self.index + index]
-            except IndexError: break
+            try: model = data[self.displayed_index + index]
+            except: break
             try: current = displayed[index]
-            except IndexError: print('hit displayed index error')
+            except: pass
             else:
                 try:
                     if current is not model:
                         i = displayed.index(model)
                         displayed.swap(index, i)
                     continue
-                except ValueError:
-                    pass
+                except ValueError: pass
             displayed.insert(index, model)
-        else:
-            index += 1
+        else: index += 1
 
         for i in reversed(range(index, len(displayed))):
             del displayed[i]
@@ -958,27 +920,34 @@ class ListView(DataView, BoxLayout):
 
 
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.displayed = factory.make('DataDeque')
+    def on_appendleft(self, displayed, model):
+        self.add_widget(self._factory.make(self.cls, model=model),
+                        len(self.children))
 
 
-    def on_appendleft(self, model):
-        self.add_widget(self._factory.make(self.cls, model=model))
+    def scroll_up(self, amt=1):
+        if self.displayed_index > 0:
+            self.displayed_index -= 1
+            self.update_displayed()
+            self.walker.inc()
 
 
+    def scroll_down(self, amt=1):
+        if self.displayed_index < len(self.data) - 1:
+            self.displayed.popleft()
+            self.displayed_index += 1
+            self.update_displayed()
+            self.walker.dec()
 
-    def scroll_up(self, amt):
-        if self.index > 0:
-            self.index -= 1
-        self.update_displayed()
+
+    def walk_up(self):
+        if self.walker.index == 0: self.scroll_up()
+        self.walker.dec()
 
 
-    def scroll_down(self, amt):
-        self.displayed.popleft()
-        if self.index > 0:
-            self.index += 1
-        self.update_displayed()
+    def walk_down(self):
+        if self.walker.index == self.num_displayed - 1: self.scroll_down()
+        self.walker.inc()
 
 
 
@@ -986,13 +955,9 @@ class ListView(DataView, BoxLayout):
 
 class Interactive(EventDispatcher):
     '''Mixin for Interactive Widgets'''
-
     is_active = BooleanProperty(False)
-
-    def on_active(self, controller):
-        pass
-    def on_inactive(self, controller):
-        pass
+    def on_active(self, controller): pass
+    def on_inactive(self, controller): pass
 
 
 
@@ -1006,9 +971,7 @@ class ActiveProperty(ObjectProperty):
 
     def set(self, obj, value):
         old_value = super().get(obj)
-
-        if value is old_value:
-            return False
+        if value is old_value: return False
 
         if old_value:
             old_value.is_active = False
@@ -1066,22 +1029,16 @@ class Controller(Widget):
         else:
             input_keys = ''.join(['ctrl shift ', keycode[1]])
 
-        try:
-            cmd = self.binds[input_keys]
-        except KeyError:
-            return False
+        try: cmd = self.binds[input_keys]
+        except KeyError: return False
 
-        try:
-            cb = getattr(self.focus, cmd)
+        try: cb = getattr(self.focus, cmd)
         except AttributeError:
-            try:
-                cb = getattr(self.region, cmd)
+            try: cb = getattr(self.region, cmd)
             except AttributeError:
-                try:
-                    cb = getattr(self.page, cmd)
+                try: cb = getattr(self.page, cmd)
                 except AttributeError:
-                    try:
-                        cb = getattr(self.root, cmd)
+                    try: cb = getattr(self.root, cmd)
                     except AttributeError:
                         return False
 
@@ -1130,8 +1087,6 @@ class Walker(EventDispatcher):
         return self._index
 
     def _set_index(self, i):
-        if i == self._index:
-            return False
         self._index = i
         return True
 
@@ -1148,8 +1103,9 @@ class Walker(EventDispatcher):
         return self.data[_max]
 
     def _set_current(self, current):
-        index = self.data.index(current)
-        self.index = index
+        try: index = self.data.index(current)
+        except ValueError: return False
+        else: self.index = index
         return True
 
 
@@ -1165,16 +1121,15 @@ class Walker(EventDispatcher):
 
     def inc(self):
         length = len(self.data)
-        if self.index < length - 1:
-            self.index = self.index + 1
-        return self.current
-
+        if self.index < length - 1: self.index += 1
+        else: self.index = self.index # Dispatch regardless
 
     def dec(self):
-        if self.index > 0:
-            self.index -= 1
-        return self.current
+        if self.index > 0: self.index -= 1
+        else: self.index = self.index
 
+
+    def update(self): self.property('index').dispatch(self)
 
 
 def load_kv(*args):
