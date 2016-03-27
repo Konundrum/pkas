@@ -55,7 +55,7 @@ class MyDataModel(DataModel):
 ```  
   
 DataCollections are DataModels with an event list that defines a protocol
-used to keep the DataCollection in sync with a DataView:  
+used to keep it in sync with a DataView:  
 ```  
 class DataCollection(DataModel):  
     events = ['on_evt', ...]  
@@ -118,6 +118,6 @@ class MyView(RecyclerView, BoxLayout):
   
 controller.focus = myview_instance  
   
-  
 ```
+
   

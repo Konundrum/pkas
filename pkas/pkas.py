@@ -500,9 +500,9 @@ class DataDict(DataCollection, MutableMapping):
 
 
 @specify
-class FileContext(DataDict):
+class FileContext(DataModel, MutableMapping):
     '''
-    DataDict for saving to and loading from files.
+    DataModel for saving to and loading from files.
 
     Objects are stored by a unique key that is added as an attribute when
     the model is added to the context. This key remains with the object
@@ -511,6 +511,7 @@ class FileContext(DataDict):
 
     name = StringProperty('default')
     filename = StringProperty('')
+    data = ObjectProperty(None, baseclass=dict)
 
 
     def __init__(self, mode='json', **kwargs):
@@ -519,6 +520,21 @@ class FileContext(DataDict):
 
     # def __repr__(self):
     #     return 'Context {}: {}'.format(self.name, self.data)
+    def __len__(self): return len(self.data)
+    def __iter__(self): return iter(self.data)
+    def __contains__(self, key): return key in self.data
+    def __delitem__(self, key): del self.data[key]
+    def __setitem__(self, key, value): self.data[key] = value
+    def __getitem__(self, key): return self.data[key]
+    def get(self, key): return self.data[key]
+    def delete(self, key): del self.data[key]
+    def put(self, value):
+        try: _id = value._id
+        except AttributeError: _id = value._id = self._get_id()
+        else:
+            if _id in self.data: raise ValueError('ID already in File')
+        self.data[_id] = value
+
 
     def _get_id(self):
         for i in range(3):
@@ -535,14 +551,14 @@ class FileContext(DataDict):
         log('Saving:', self)
 
         with open(self.filename, 'w') as f:
-            f.write('{}\n'.format(self.mode))
+            f.write('pkas:mode={}\n'.format(self.mode))
             for output in getattr(self, 'to_{}'.format(self.mode))():
                 f.write(output)
 
 
     def to_json(self):
         yield ('{\n')
-        for _id, model in self.items():
+        for _id, model in self.data.items():
             yield ('"{}" : {},\n'.format(_id, getattr(model, 'to_json')()))
         yield ('"name" : "{}"\n'.format(self.name))
         yield ('}\n')
@@ -556,7 +572,7 @@ class FileContext(DataDict):
                 make(d.pop('__class__'), **d) if '__class__' in d else d)
 
         self.name = data.pop('name')
-        self.update(data)
+        self.data = data
 
         for model in data.values():
             model.load(self)
@@ -691,7 +707,6 @@ class DataView(Layout):
     def on_del(self, data, i):
         i = len(self.children) - 1 - i
         widget = self.children[i]
-        log('deleting', widget)
         self.remove_widget(widget)
         self._factory.recycle(widget)
 
@@ -918,8 +933,6 @@ class ListView(DataView, BoxLayout):
             del displayed[i]
 
 
-
-
     def on_appendleft(self, displayed, model):
         self.add_widget(self._factory.make(self.cls, model=model),
                         len(self.children))
@@ -941,13 +954,24 @@ class ListView(DataView, BoxLayout):
 
 
     def walk_up(self):
-        if self.walker.index == 0: self.scroll_up()
-        self.walker.dec()
+        if self.walker.index == 0:
+            if self.displayed_index > 0:
+                self.displayed_index -= 1
+                self.update_displayed()
+                self.walker.update()
+        else:
+            self.walker.dec()
 
 
     def walk_down(self):
-        if self.walker.index == self.num_displayed - 1: self.scroll_down()
-        self.walker.inc()
+        if self.walker.index == self.num_displayed - 1:
+            if self.displayed_index < len(self.data) - 1:
+                self.displayed.popleft()
+                self.displayed_index += 1
+                self.update_displayed()
+                self.walker.update()
+        else:
+            self.walker.inc()
 
 
 
