@@ -8,7 +8,7 @@ DataCollections, and a control system which delegates to commands mapped by
 keybinds to Interactive Widgets.  
   
 #### Contents:  
----
+---  
 ```  
 class Factory(object):  
 factory = Factory() # Singleton  
@@ -16,9 +16,11 @@ def specify(Ctor, stack_length=STACK_LEN):
   
 class DataModel(EventDispatcher):  
 class DataCollection(DataModel):  
-class DataList(DataCollection, UserList):  
-class DataDict(DataCollection, UserDict):  
-class FileContext(DataDict):  
+class DataList(DataCollection, MutableSequence):  
+class DataDeque(DataList):  
+class DataDict(DataCollection, MutableMapping):  
+class DataSet(DataCollection, MutableSet):  
+class FileContext(DataModel, MutableMapping):  
   
 class DataProperty(ObjectProperty):  
 class SelectorProperty(DataProperty):  
@@ -26,9 +28,15 @@ class DataWidget(Widget):
   
 class CollectionProperty(ObjectProperty):  
 class DataView(Layout):  
-class RecyclerProperty(CollectionProperty):  
-class RecyclerView(DataView):  
-class ListView(DataView, BoxLayout):  
+class ListView(DataView):  
+class DictView(Layout):  
+class SetView(Layout):  
+  
+class ReducerProperty(CollectionProperty):  
+class ListReducerView(ListView):  
+class DequeReducerView(ListView):  
+class DictReducerView(DictView):  
+class SetReducerView(SetView):  
   
 class Interactive(EventDispatcher):  
 class ActiveProperty(ObjectProperty):  
@@ -67,16 +75,6 @@ class DataView(Layout):
     data = CollectionProperty()  
 ```  
   
-RecyclerProperties keep a target CollectionProperty in sync with the 
-objects yielded by a generator function:  
-```  
-class RecyclerView(DataView):  
-    def gen_data(self):  
-      ...  
-    displayed = CollectionProperty()  
-    data = RecyclerProperty(displayed, gen_data)  
-  
-```  
 
 Active Properties call active / inactive methods on InteractiveWidgets:
 ```  
